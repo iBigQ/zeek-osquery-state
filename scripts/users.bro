@@ -1,7 +1,7 @@
 #! Provide current user information about hosts.
 
 @load zeek-osquery-framework
-@load zeek-osquery-queries/logging/tables/users
+@load zeek-osquery-queries/tables/users
 
 module osquery::users;
 
