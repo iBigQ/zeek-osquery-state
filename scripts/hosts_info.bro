@@ -2,7 +2,7 @@
 
 @load zeek-osquery-framework
 
-module osquery::host_info;
+module osquery;
 
 export {
     redef enum Log::ID += { LOG };
@@ -17,7 +17,7 @@ export {
     };
 }
 
-event host_info_net(resultInfo: osquery::ResultInfo, interface: string, ip: string, mac: string)
+event osquery::host_info_net(resultInfo: osquery::ResultInfo, interface: string, ip: string, mac: string)
 {
     # Remove interface name from IP
     if ("%" in ip)
@@ -35,7 +35,7 @@ event host_info_net(resultInfo: osquery::ResultInfo, interface: string, ip: stri
 
     # Update the interface
     local host_id = resultInfo$host;
-    osquery::hosts::updateInterface(resultInfo$utype, host_id, interface, to_addr(ip), mac);
+    osquery::updateInterface(resultInfo$utype, host_id, interface, to_addr(ip), mac);
 
     # Log the change
     Log::write(LOG, [$ts = network_time(),
@@ -51,13 +51,13 @@ event host_info_net(resultInfo: osquery::ResultInfo, interface: string, ip: stri
 
 event osquery::host_disconnected(host_id: string)
 {
-    osquery::hosts::removeHost(host_id);
+    osquery::removeHost(host_id);
 }
 
 event bro_init()
 {
     Log::create_stream(LOG, [$columns=Info, $path="osq-host_info"]);
 
-    local ev = [$ev=host_info_net,$query="SELECT a.interface, a.address, d.mac from interface_addresses as a INNER JOIN interface_details as d ON a.interface=d.interface;", $utype=osquery::BOTH];
+    local ev = [$ev=osquery::host_info_net,$query="SELECT a.interface, a.address, d.mac from interface_addresses as a INNER JOIN interface_details as d ON a.interface=d.interface;", $utype=osquery::BOTH];
     osquery::subscribe(ev);
 }

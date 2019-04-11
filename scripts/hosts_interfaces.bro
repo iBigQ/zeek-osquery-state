@@ -1,6 +1,6 @@
-module osquery::hosts;
-
 @load zeek-osquery-framework
+
+module osquery;
 
 export {
     type InterfaceInfo: record {
@@ -265,6 +265,6 @@ function updateInterface(utype: osquery::UpdateType, host_id: string, interface:
     }
 
     # Check for groups to join/leave (and subscriptions to add/remove)
-    hook host_addr_updated(utype, host_id, ip);
+    hook osquery::host_addr_updated(utype, host_id, ip);
 }
 
