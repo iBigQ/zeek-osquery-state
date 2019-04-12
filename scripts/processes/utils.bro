@@ -3,10 +3,18 @@
 module osquery;
 
 export {
-	## Check if two process infos have equal pid
+	type ProcessInfo: record {
+		pid: int;
+		path: string &optional;
+		cmdline: string &optional;
+		uid: int &optional;
+		parent: int &optional;
+	};
+
+	## Check if two process infos have equal keys
 	##
 	## <params missing>
-	global equalProcessIDs: function(proc1: ProcessInfo, proc2: ProcessInfo): bool;
+	global equalProcessKeys: function(proc1: ProcessInfo, proc2: ProcessInfo): bool;
 
 
 	## Check if two process infos are equal
@@ -15,7 +23,7 @@ export {
 	global equalProcessInfos: function(proc1: ProcessInfo, proc2: ProcessInfo): bool;
 }
 
-function equalProcessIDs(proc1: ProcessInfo, proc2: ProcessInfo): bool {
+function equalProcessKeys(proc1: ProcessInfo, proc2: ProcessInfo): bool {
 	if (proc1$pid != proc2$pid) {
 		return F;
 	}
@@ -23,7 +31,7 @@ function equalProcessIDs(proc1: ProcessInfo, proc2: ProcessInfo): bool {
 }
 
 function equalProcessInfos(proc1: ProcessInfo, proc2: ProcessInfo): bool {
-	if (proc1$pid != proc2$pid) {
+	if (!equalProcessKeys(proc1, proc2)) {
 		return F;
 	}
 	if (proc1?$path != proc2?$path) {

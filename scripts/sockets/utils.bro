@@ -3,10 +3,34 @@
 module osquery;
 
 export {
+	type ConnectionTuple: record {
+		local_address: addr &optional;
+		remote_address: addr &optional;
+		local_port: int &optional;
+		remote_port: int &optional;
+		protocol: int &optional;
+	};
+
+	type SocketInfo: record {
+		pid: int;
+		fd: int;
+		connection: ConnectionTuple &default=[];
+		state: string;
+		path: string &optional;
+		family: int &optional;
+		start_time: int &optional;
+		success: int &optional;
+	};
+
 	## Checks if the connection is described by the connection pattern
 	##
 	## <params missing>
 	global matchConnectionTuplePattern: function(conn: ConnectionTuple, conn_pattern: ConnectionTuple): bool;
+
+	## Check if two socket infos have equal keys
+	##
+	## <params missing>
+	global equalSocketKeys: function(sock1: SocketInfo, sock2: SocketInfo): bool;
 
 	## Check if two socket infos are equal
 	##
@@ -92,14 +116,21 @@ function matchConnectionTuplePattern(conn: ConnectionTuple, conn_pattern: Connec
 	return T;
 }
 
-function equalSocketInfos(sock1: SocketInfo, sock2: SocketInfo): bool {
-	if (sock1$state != sock2$state) {
-		return F;
-	}
+function equalSocketKeys(sock1: SocketInfo, sock2: SocketInfo): bool {
 	if (sock1$pid != sock2$pid) {
 		return F;
 	}
 	if (sock1$fd != sock2$fd) {
+		return F;
+	}
+	return T;
+}
+
+function equalSocketInfos(sock1: SocketInfo, sock2: SocketInfo): bool {
+	if (!equalSocketKeys(sock1, sock2)) {
+		return F;
+	}
+	if (sock1$state != sock2$state) {
 		return F;
 	}
 	return equalConnectionTuples(sock1$connection, sock2$connection);

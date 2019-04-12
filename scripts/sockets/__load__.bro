@@ -1,5 +1,5 @@
-@load ./commons
 @load ./utils
-@load ./main
+@load ./commons
 @load ./get
+@load ./main
 @load ./log

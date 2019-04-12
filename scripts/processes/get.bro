@@ -12,7 +12,7 @@ export {
 	##
 	## host_id: The identifier of the host
 	## pid: The identifier of the process
-	global getProcessInfoByHostID: function(host_id: string, pid: int): vector of ProcessInfo;
+	global getProcessInfosByHostIDByPID: function(host_id: string, pid: int): set[ProcessInfo];
 }
 
 function getProcessInfosByHostID(host_id: string): set[ProcessInfo] {
@@ -26,9 +26,9 @@ function getProcessInfosByHostID(host_id: string): set[ProcessInfo] {
 	return process_infos;
 }
 
-function getProcessInfoByHostID(host_id: string, pid: int): vector of ProcessInfo {
-	if (host_id !in osquery::state::processes::processes) { return vector(); }
-	if (pid !in osquery::state::processes::processes[host_id]) { return vector(); }
+function getProcessInfosByHostIDByPID(host_id: string, pid: int): set[ProcessInfo] {
+	if (host_id !in osquery::state::processes::processes) { return set(); }
+	if (pid !in osquery::state::processes::processes[host_id]) { return set(); }
 
-	return vector(osquery::state::processes::processes[host_id][pid]);
+	return set(osquery::state::processes::processes[host_id][pid]);
 }

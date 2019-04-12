@@ -11,7 +11,7 @@ event osquery::state::sockets::initial_process_open_socket(resultInfo: osquery::
 	local path: string = "";
 	local start_time = -1;
 	local success: int = 1;
-	local state: string = "established";
+	local state: string = "connect";
 	local connection_tuple = osquery::create_connection_tuple(local_address, remote_address, local_port, remote_port, protocol);
 	add_entry(resultInfo$host, pid, fd, connection_tuple, state, path, family, start_time, success);
 }
@@ -20,7 +20,7 @@ event osquery::state::sockets::initial_listening_port(resultInfo: osquery::Resul
 	local path: string = "";
 	local start_time = -1;
 	local success: int = 1;
-	local state: string = "listening";
+	local state: string = "bind";
 	local remote_address = "";
 	local remote_port = -1;
 	local connection_tuple = osquery::create_connection_tuple(local_address, remote_address, local_port, remote_port, protocol);

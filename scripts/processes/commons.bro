@@ -3,14 +3,6 @@
 module osquery;
 
 export {
-	type ProcessInfo: record {
-		pid: int;
-		path: string &optional;
-		cmdline: string &optional;
-		uid: int &optional;
-		parent: int &optional;
-	};
-
 	## Event when added to the state of processes
 	##
 	## <params missing>
