@@ -83,6 +83,9 @@ event osquery::state::sockets::scheduled_remove_host(host_id: string) {
 event osquery::state::sockets::state_outdated(resultInfo: osquery::ResultInfo, pid_str: string, fd_str: string, state: string) {
 	local pid = to_int(pid_str);
 	local fd = to_int(fd_str);
+	# Host already removed?
+	if (resultInfo$host !in socket_events_freshness) { return; }
+
 	socket_events_freshness[resultInfo$host][pid, fd] = F;
 	schedule 30sec { osquery::state::sockets::scheduled_remove(resultInfo$host, pid, fd, state) };
 }

@@ -47,6 +47,9 @@ event osquery::state::processes::scheduled_remove_host(host_id: string) {
 
 event osquery::state::processes::state_outdated(resultInfo: osquery::ResultInfo, pid_str: string) {
 	local pid = to_int(pid_str);
+	# Host already removed?
+	if (resultInfo$host !in process_freshness) { return; }
+	
 	process_freshness[resultInfo$host][pid] = F;
 	schedule 30sec { osquery::state::processes::scheduled_remove(resultInfo$host, pid) };
 }
