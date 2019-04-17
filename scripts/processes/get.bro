@@ -17,18 +17,37 @@ export {
 
 function getProcessInfosByHostID(host_id: string): set[ProcessInfo] {
 	local process_infos: set[ProcessInfo] = set();
-	if (host_id !in osquery::state::processes::processes) { return process_infos; }
 
-	for (pid in osquery::state::processes::processes[host_id]) {
-		add process_infos[osquery::state::processes::processes[host_id][pid]];
+	local procs_vec: vector of osquery::state::processes::ProcessState = vector(osquery::state::processes::processes, osquery::state::processes::process_events);
+	local procs: osquery::state::processes::ProcessState;
+	for (p_idx in procs_vec) {
+		procs = procs_vec[p_idx];
+		if (host_id !in procs) { next; }
+
+		for (pid in procs[host_id]) {
+			for (inf_idx in procs[host_id][pid]) {
+				add process_infos[procs[host_id][pid][inf_idx]];
+			}
+		}
 	}
 
 	return process_infos;
 }
 
 function getProcessInfosByHostIDByPID(host_id: string, pid: int): set[ProcessInfo] {
-	if (host_id !in osquery::state::processes::processes) { return set(); }
-	if (pid !in osquery::state::processes::processes[host_id]) { return set(); }
+	local process_infos: set[ProcessInfo] = set();
 
-	return set(osquery::state::processes::processes[host_id][pid]);
+	local procs_vec: vector of osquery::state::processes::ProcessState = vector(osquery::state::processes::processes, osquery::state::processes::process_events);
+	local procs: osquery::state::processes::ProcessState;
+	for (p_idx in procs_vec) {
+		procs = procs_vec[p_idx];
+		if (host_id !in procs) { next; }
+		if (pid !in procs[host_id]) { next; }
+
+		for (inf_idx in procs[host_id][pid]) {
+			add process_infos[procs[host_id][pid][inf_idx]];
+		}
+	}
+
+	return process_infos;
 }

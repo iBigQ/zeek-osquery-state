@@ -65,7 +65,7 @@ function add_entry(host_id: string, pid: int, fd: int, connection_tuple: osquery
 	# Insert into state
 	if (host_id in sockets) {
 		if ([pid, fd] in sockets[host_id]) {
-			sockets[host_id][pid, fd][|sockets[host_id][pid, fd]|] = socket_info;
+			sockets[host_id][pid, fd] += socket_info;
 		} else {
 			sockets[host_id][pid, fd] = vector(socket_info);
 		}
@@ -74,13 +74,14 @@ function add_entry(host_id: string, pid: int, fd: int, connection_tuple: osquery
 	}
 
 
-	# Set fresh
+	# For event entry
 	if (state == "connect" || state == "bind") {
+		# Set fresh
 		socket_events_freshness[host_id][pid, fd] = T;
-	}
-	# Schedule removal of overriden event entry
-	if (|sockets[host_id][pid, fd]| > 1) {
-		schedule 30sec { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state) };
+		# Schedule removal of overriden event entry
+		if (|sockets[host_id][pid, fd]| > 1) {
+			schedule 30sec { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state) };
+		}
 	}
 	event osquery::socket_state_added(host_id, socket_info);
 }

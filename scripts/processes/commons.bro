@@ -22,11 +22,14 @@ export {
 module osquery::state::processes;
 
 export {
+	type ProcessState: table[string] of table[int] of vector of osquery::ProcessInfo;
+
 	# Table to access ProcessInfo by HostID
-	global processes: table[string] of table[int] of osquery::ProcessInfo;
+	global processes: ProcessState = table();
+	global process_events: ProcessState = table();
 
 	# Table to indicate freshness of ProcessInfo by HostID
-	global process_freshness: table[string] of table[int] of bool;
+	global process_events_freshness: table[string] of table[int] of bool;
 
 	# Table to indicate freshness of hosts by HostID
 	global host_freshness: table[string] of bool;
@@ -35,68 +38,93 @@ export {
 	global host_maintenance: set[string];
 
 	# Add an entry to the process state
-	global add_entry: function(host_id: string, pid: int, path: string, cmdline: string, uid: int, parent: int);
+	global add_entry: function(host_id: string, ev: bool, pid: int, path: string, cmdline: string, uid: int, parent: int);
 
 	# Remove an entry from the process state
-	global remove_entry: function(host_id: string, pid: int);
+	global remove_entry: function(host_id: string, pid: int, ev: bool);
 
 	# Remove all entries for host from the process state
 	global remove_host: function(host_id: string);
 }
 
-function add_entry(host_id: string, pid: int, path: string, cmdline: string, uid: int, parent: int) {
-	# Update or insert new
-	local process_info: osquery::ProcessInfo;
-	if (host_id in processes && pid in processes[host_id]) {
-		# Update
-		process_info = processes[host_id][pid];
-	} else {
-		# New
-		process_info = [$pid=pid];
-	}
-	# - Path
+global scheduled_remove: event(host_id: string, pid: int, ev: bool);
+
+function add_entry(host_id: string, ev: bool, pid: int, path: string, cmdline: string, uid: int, parent: int) {
+	local process_info: osquery::ProcessInfo = [$pid=pid];
 	if (path != "") { process_info$path = path; }
-	# - Cmdline
 	if (cmdline != "") { process_info$cmdline = cmdline; }
-	# - UID
 	if (uid != -1) { process_info$uid = uid; }
-	# - Parent
 	if (parent != -1) { process_info$parent = parent; }
 
+	local procs: ProcessState;
+	if (ev) { procs = process_events; }
+	else { procs = processes; }
+
 	# Insert into state
-	if (host_id in processes) {
-		processes[host_id][pid] = process_info;
+	if (host_id !in procs) { procs[host_id] = table(); }
+	if (pid in procs[host_id]) {
+		procs[host_id][pid] += process_info;
 	} else {
-		processes[host_id] = table([pid] = process_info);
+		procs[host_id][pid] = vector(process_info);
 	}
 
-	# Set fresh
-	process_freshness[host_id][process_info$pid] = T;
+	# For event entry
+	if (ev) { 
+		# Set fresh
+		process_events_freshness[host_id][pid] = T;
+		# Schedule removal of overriden event entry
+		if (|procs[host_id][pid]| > 1) {
+			schedule 30sec { osquery::state::processes::scheduled_remove(host_id, pid, ev) };
+		}
+	}
+
 	event osquery::process_state_added(host_id, process_info);
 }
 
-function remove_entry(host_id: string, pid: int) {
+function remove_entry(host_id: string, pid: int, ev: bool) {
+	local procs: ProcessState;
+	if (ev) { procs = process_events; }
+	else { procs = processes; }
+	
 	# Check if process exists
-	if (host_id !in processes) { return; }
-	if (pid !in processes[host_id]) { return; }
+	if (host_id !in procs) { return; }
+	if (pid !in procs[host_id]) { return; }
+	if (|procs[host_id][pid]| == 0) { return; }
 
-	# Check if process is fresh
-	if (process_freshness[host_id][pid]) { return; }
+	# Check if process event is fresh
+	if (ev && process_events_freshness[host_id][pid]) { return; }
 
 	# Remove from state
-	local process_info = processes[host_id][pid];
-	delete processes[host_id][pid];
+	local process_info = procs[host_id][pid][0];
+	if (|procs[host_id][pid]| == 1) {
+		delete procs[host_id][pid];
+		# Remove freshness
+		if (ev) { delete process_events_freshness[host_id][pid]; }
+	} else {
+		local process_infos: vector of osquery::ProcessInfo = vector();
+		for (idx in procs[host_id][pid]) {
+			if (idx == 0) { next; }
+			process_infos += procs[host_id][pid][idx];
+		}
+	}
 
-	# Remove freshness
-	delete process_freshness[host_id][pid];
 	event osquery::process_state_removed(host_id, process_info);
 }
 
 function remove_host(host_id: string) {
-	if (host_id !in processes) { return; }
+	if (host_id !in processes && host_id !in process_events) { return; }
 
-	for (pid in processes[host_id]) {
-		event osquery::process_state_removed(host_id, processes[host_id][pid]);
+	local procs_vec: vector of ProcessState = vector(processes, process_events);
+	local procs: ProcessState;
+	for (idx in procs_vec) {
+		procs = procs_vec[idx];
+		if (host_id !in procs) { next; }
+
+		for (pid in procs[host_id]) {
+			for (idx in procs[host_id][pid]) {
+				event osquery::process_state_removed(host_id, procs[host_id][pid][idx]);
+			}
+		}
+		delete procs[host_id];
 	}
-	delete processes[host_id];
 }

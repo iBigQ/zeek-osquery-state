@@ -167,13 +167,8 @@ event osquery::host_disconnected(host_id: string) {
 	# Set host and state not fresh
 	host_freshness[host_id] = F;
 	if (host_id !in socket_events_freshness) { socket_events_freshness[host_id] = table(); }
-	local sockets_vec: vector of SocketState = vector(process_open_sockets, listening_ports, socket_events);
-	local sockets: SocketState;
-	for (idx in sockets_vec) {
-		sockets = sockets_vec[idx];
-		for ([pid, fd] in sockets[host_id]) {
-			socket_events_freshness[host_id][pid, fd] = F;
-		}
+	for ([pid, fd] in socket_events_freshness[host_id]) {
+		socket_events_freshness[host_id][pid, fd] = F;
 	}
 
 	# Schedule removal of host
