@@ -122,7 +122,7 @@ event osquery::state::sockets::verify(host_id: string) {
 
 	if (|select_binds| != 0) {
 		# Select query
-		query_string = fmt("SELECT x, y, \"bind\" FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM listening_ports)" , join_string_vec(select_connects, " UNION "));
+		query_string = fmt("SELECT x, y, 'bind' FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM listening_ports)" , join_string_vec(select_connects, " UNION "));
 	
 		# Send query
 		query = [$ev=osquery::state::sockets::state_outdated, $query=query_string];
@@ -131,7 +131,7 @@ event osquery::state::sockets::verify(host_id: string) {
 
 	if (|select_connects| != 0) {
 		# Select query
-		query_string = fmt("SELECT x, y, \"connect\" FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM process_open_sockets)" , join_string_vec(select_connects, " UNION "));
+		query_string = fmt("SELECT x, y, 'connect' FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM process_open_sockets)" , join_string_vec(select_connects, " UNION "));
 	
 		# Send query
 		query = [$ev=osquery::state::sockets::state_outdated, $query=query_string];
@@ -146,9 +146,9 @@ event osquery::state::sockets::verify(host_id: string) {
 event osquery::host_connected(host_id: string) {
 	# Retrieve initial state
         local ev_sockets: osquery::Query;
-	ev_sockets = [$ev=osquery::state::sockets::initial_process_open_socket, $query="SELECT pid, fd, family, protocol, local_address, remote_address, local_port, remote_port from process_open_sockets WHERE family=2 AND 1=1"];
+	ev_sockets = [$ev=osquery::state::sockets::initial_process_open_socket, $query="SELECT pid, fd, family, protocol, local_address, remote_address, local_port, remote_port FROM process_open_sockets WHERE family=2 AND 1=1"];
 	osquery::execute(ev_sockets, host_id);
-        ev_sockets = [$ev=osquery::state::sockets::initial_listening_port, $query="SELECT pid, fd, family, socket, protocol, address, port from listening_ports WHERE family=2 AND 1=1;"];
+        ev_sockets = [$ev=osquery::state::sockets::initial_listening_port, $query="SELECT pid, fd, family, socket, protocol, address, port FROM listening_ports WHERE family=2 AND 1=1"];
 	osquery::execute(ev_sockets, host_id);
 
 	# Schedule maintenance

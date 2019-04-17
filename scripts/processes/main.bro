@@ -92,7 +92,7 @@ event osquery::state::processes::verify(host_id: string) {
 
 event osquery::host_connected(host_id: string) {
 	# Retrieve initial state
-        local ev_processes = [$ev=osquery::state::processes::initial_state, $query="SELECT pid,path,cmdline,cwd,uid,gid,parent FROM processes WHERE 1=1;"];
+        local ev_processes = [$ev=osquery::state::processes::initial_state, $query="SELECT pid, path, cmdline, cwd, uid, gid, parent FROM processes WHERE 1=1"];
 	osquery::execute(ev_processes, host_id);
 
 	# Schedule maintenance
