@@ -52,18 +52,18 @@ event osquery::socket_event_added(t: time, host_id: string, action: string, pid:
 	add_entry(host_id, pid, fd, connection_tuple, action, path, family, start_time, success);
 }
 
-event osquery::state::sockets::scheduled_remove(host_id: string, pid: int, fd: int, state: string) {
-	remove_entry(host_id, pid, fd, state);
+event osquery::state::sockets::scheduled_remove(host_id: string, pid: int, fd: int, state: string, oldest: bool) {
+	remove_entry(host_id, pid, fd, state, oldest);
 }
 
 event osquery::process_open_socket_removed(t: time, host_id: string, pid: int, fd: int, family: int, protocol: int, local_address: string, remote_address: string, local_port: int, remote_port: int) {
 	local state: string = "established";
-	schedule 30sec { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state) };
+	schedule 30sec { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state, T) };
 }
 
 event osquery::listening_port_removed(t: time, host_id: string, pid: int, fd: int, family: int, socket: int, protocol: int, local_address: string, local_port: int) {
 	local state: string = "listening";
-	schedule 30sec { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state) };
+	schedule 30sec { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state, T) };
 }
 
 event osquery::state::sockets::scheduled_remove_host(host_id: string) {
@@ -87,7 +87,7 @@ event osquery::state::sockets::state_outdated(resultInfo: osquery::ResultInfo, p
 	if (resultInfo$host !in socket_events_freshness) { return; }
 
 	socket_events_freshness[resultInfo$host][pid, fd] = F;
-	schedule 30sec { osquery::state::sockets::scheduled_remove(resultInfo$host, pid, fd, state) };
+	schedule 30sec { osquery::state::sockets::scheduled_remove(resultInfo$host, pid, fd, state, F) };
 }
 
 event osquery::state::sockets::verify(host_id: string) {

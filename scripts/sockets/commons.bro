@@ -42,13 +42,13 @@ export {
 	global add_entry: function(host_id: string, pid: int, fd: int, connection_tuple: osquery::ConnectionTuple, state: string, path: string, family: int, start_time: int, success: int);
 
 	# Remove entries with the ConnectionTuple from the socket state
-	global remove_entry: function(host_id: string, pid: int, fd: int, state: string);
+	global remove_entry: function(host_id: string, pid: int, fd: int, state: string, oldest: bool);
 
 	# Remove all entries for host from the socket state
 	global remove_host: function(host_id: string);
 }
 
-global scheduled_remove: event(host_id: string, pid: int, fd: int, state: string);
+global scheduled_remove: event(host_id: string, pid: int, fd: int, state: string, oldest: bool);
 
 function add_entry(host_id: string, pid: int, fd: int, connection_tuple: osquery::ConnectionTuple, state: string, path: string, family: int, start_time: int, success: int) {
 	local socket_info: osquery::SocketInfo = [$pid=pid, $fd=fd, $connection=connection_tuple, $state=state];
@@ -80,13 +80,13 @@ function add_entry(host_id: string, pid: int, fd: int, connection_tuple: osquery
 		socket_events_freshness[host_id][pid, fd] = T;
 		# Schedule removal of overriden event entry
 		if (|sockets[host_id][pid, fd]| > 1) {
-			schedule 30sec { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state) };
+			schedule 30sec { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state, T) };
 		}
 	}
 	event osquery::socket_state_added(host_id, socket_info);
 }
 
-function remove_entry(host_id: string, pid: int, fd: int, state: string) {
+function remove_entry(host_id: string, pid: int, fd: int, state: string, oldest: bool) {
 	local sockets: SocketState;
 	if (state == "established") { sockets = process_open_sockets; }
 	if (state == "listening") { sockets = listening_ports; }
@@ -97,26 +97,42 @@ function remove_entry(host_id: string, pid: int, fd: int, state: string) {
 	if ([pid, fd] !in sockets[host_id]) { return; }
 	if (|sockets[host_id][pid,fd]| == 0) { return; }
 
-	# Check if socket event is fresh
+	# Check if new socket event was added
 	if (state == "connect" || state == "bind") {
-		if (|sockets[host_id][pid, fd]| == 1 && socket_events_freshness[host_id][pid, fd]) { return; }
+		if (!oldest && socket_events_freshness[host_id][pid, fd]) { return; }
+	}
+	# Asserts
+	if (state == "connect" || state == "bind") {
+		if (oldest) {
+			if (|sockets[host_id][pid, fd]| == 1) {
+				print fmt("Only one socket despite oldest removal for PID %s and FD %s on host %s", pid, fd, host_id);
+			}
+		} else {
+			if (|sockets[host_id][pid, fd]| != 1) {
+				print fmt("More than one socket despite latest removal for PID %s and FD %s on host %s", pid, fd, host_id);
+			}
+		}
+	} else {
+		if (!oldest) {
+			print fmt("Latest socket removal despite no event for PID %s and FD %s on host %s", pid, fd, host_id);
+		}
 	}
 
 	# Remove from state
 	local socket_info = sockets[host_id][pid, fd][0];
-	local socket_infos: vector of osquery::SocketInfo = vector();
-	for (idx in sockets[host_id][pid, fd]) {
-		if (idx == 0) { next; }
-		socket_infos += sockets[host_id][pid, fd][idx];
-	}
-	sockets[host_id][pid, fd] = socket_infos;
-
-	# Remove freshness
-	if (state == "connect" || state == "bind") {
-		if (|sockets[host_id][pid, fd]| == 0) {
-			delete socket_events_freshness[host_id][pid, fd];
+	if (|sockets[host_id][pid, fd]| == 1) {
+		delete sockets[host_id][pid, fd];
+		# Remove freshness
+		if (state == "connect" || state == "bind") { delete socket_events_freshness[host_id][pid, fd]; }
+	} else {
+		local socket_infos: vector of osquery::SocketInfo = vector();
+		for (idx in sockets[host_id][pid, fd]) {
+			if (idx == 0) { next; }
+			socket_infos += sockets[host_id][pid, fd][idx];
 		}
+		sockets[host_id][pid, fd] = socket_infos;
 	}
+
 	event osquery::socket_state_removed(host_id, socket_info);
 }
 

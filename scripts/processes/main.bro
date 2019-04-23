@@ -21,13 +21,13 @@ event osquery::process_added(t: time, host_id: string, pid: int, name: string, p
 	add_entry(host_id, F, pid, path, cmdline, uid, parent);
 }
 
-event osquery::state::processes::scheduled_remove(host_id: string, pid: int, ev: bool) {
-	remove_entry(host_id, pid, ev);
+event osquery::state::processes::scheduled_remove(host_id: string, pid: int, ev: bool, oldest: bool) {
+	remove_entry(host_id, pid, ev, oldest);
 }
 
 event osquery::process_removed(t: time, host_id: string, pid: int, name: string, path: string, cmdline: string, 
 				 cwd: string,root: string,  uid: int, gid: int, on_dist: int, start_time: int, parent: int, pgroup: int) {
-	schedule 30sec { osquery::state::processes::scheduled_remove(host_id, pid, F) };
+	schedule 30sec { osquery::state::processes::scheduled_remove(host_id, pid, F, T) };
 }
 
 event osquery::state::processes::scheduled_remove_host(host_id: string) {
@@ -50,7 +50,7 @@ event osquery::state::processes::state_outdated(resultInfo: osquery::ResultInfo,
 	if (resultInfo$host !in process_events_freshness) { return; }
 	
 	process_events_freshness[resultInfo$host][pid] = F;
-	schedule 30sec { osquery::state::processes::scheduled_remove(resultInfo$host, pid, T) };
+	schedule 30sec { osquery::state::processes::scheduled_remove(resultInfo$host, pid, T, F) };
 }
 
 event osquery::state::processes::verify(host_id: string) {

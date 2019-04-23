@@ -41,13 +41,13 @@ export {
 	global add_entry: function(host_id: string, ev: bool, pid: int, path: string, cmdline: string, uid: int, parent: int);
 
 	# Remove an entry from the process state
-	global remove_entry: function(host_id: string, pid: int, ev: bool);
+	global remove_entry: function(host_id: string, pid: int, ev: bool, oldest: bool);
 
 	# Remove all entries for host from the process state
 	global remove_host: function(host_id: string);
 }
 
-global scheduled_remove: event(host_id: string, pid: int, ev: bool);
+global scheduled_remove: event(host_id: string, pid: int, ev: bool, oldest: bool);
 
 function add_entry(host_id: string, ev: bool, pid: int, path: string, cmdline: string, uid: int, parent: int) {
 	local process_info: osquery::ProcessInfo = [$pid=pid];
@@ -74,14 +74,14 @@ function add_entry(host_id: string, ev: bool, pid: int, path: string, cmdline: s
 		process_events_freshness[host_id][pid] = T;
 		# Schedule removal of overriden event entry
 		if (|procs[host_id][pid]| > 1) {
-			schedule 30sec { osquery::state::processes::scheduled_remove(host_id, pid, ev) };
+			schedule 30sec { osquery::state::processes::scheduled_remove(host_id, pid, ev, T) };
 		}
 	}
 
 	event osquery::process_state_added(host_id, process_info);
 }
 
-function remove_entry(host_id: string, pid: int, ev: bool) {
+function remove_entry(host_id: string, pid: int, ev: bool, oldest: bool) {
 	local procs: ProcessState;
 	if (ev) { procs = process_events; }
 	else { procs = processes; }
@@ -91,8 +91,24 @@ function remove_entry(host_id: string, pid: int, ev: bool) {
 	if (pid !in procs[host_id]) { return; }
 	if (|procs[host_id][pid]| == 0) { return; }
 
-	# Check if process event is fresh
-	if (ev && process_events_freshness[host_id][pid]) { return; }
+	# Check if new process event was added
+	if (ev && !oldest && process_events_freshness[host_id][pid]) { return; }
+	# Asserts
+	if (ev) {
+		if (oldest) {
+			if (|procs[host_id][pid]| == 1) {
+				print fmt("Only one process despite oldest removal for PID %s on host %s", pid, host_id);
+			}
+		} else {
+			if (|procs[host_id][pid]| != 1) {
+				print fmt("More than one process despite latest removal for PID %s on host %s", pid, host_id);
+			}
+		}
+	} else {
+		if (!oldest) {
+			print fmt("Latest process removal despite no event for PID %s on host %s", pid, host_id);
+		}
+	}
 
 	# Remove from state
 	local process_info = procs[host_id][pid][0];
@@ -106,6 +122,7 @@ function remove_entry(host_id: string, pid: int, ev: bool) {
 			if (idx == 0) { next; }
 			process_infos += procs[host_id][pid][idx];
 		}
+		procs[host_id][pid] = process_infos;
 	}
 
 	event osquery::process_state_removed(host_id, process_info);
