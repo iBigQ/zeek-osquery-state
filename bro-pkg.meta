@@ -1,8 +1,8 @@
 [package]
 description = State reconstruction of SQL tables for osquery hosts.
 tags = osquery, state
-version = 0.2.0
+version = 0.3.0
 depends =
-  zeek-osquery-framework ~0.2.0
-  zeek-osquery-queries ~0.2.0
+  zeek-osquery-framework ~0.3.0
+  zeek-osquery-queries ~0.3.0
 script_dir = scripts
