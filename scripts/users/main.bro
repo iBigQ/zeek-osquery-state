@@ -16,7 +16,7 @@ event osquery::state::users::scheduled_remove(host_id: string, uid: int) {
 event osquery::user_removed(t: time, host_id: string, uid: int, gid: int, uid_signed: int, gid_signed: int, username: string,
 			description: string, directory: string, shell: string, uuid: string, user_type: string) {
 	user_freshness[host_id][uid] = F;
-	schedule 30sec { osquery::state::users::scheduled_remove(host_id, uid) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::users::scheduled_remove(host_id, uid) };
 }
 
 event osquery::state::users::scheduled_remove_host(host_id: string) {
@@ -47,5 +47,5 @@ event osquery::host_disconnected(host_id: string) {
 	}
 
 	# Schedule removal of host
-	schedule 30sec { osquery::state::users::scheduled_remove_host(host_id) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::users::scheduled_remove_host(host_id) };
 }

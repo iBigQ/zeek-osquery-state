@@ -17,7 +17,7 @@ event osquery::state::interfaces::scheduled_remove(host_id: string, name: string
 event osquery::interface_removed(t: time, host_id: string, interface: string, mac: string, ip: string, mask: string) {
 	local a = to_addr(ip);
 	interface_freshness[host_id][interface, a] = F;
-	schedule 30sec { osquery::state::interfaces::scheduled_remove(host_id, interface, a) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::interfaces::scheduled_remove(host_id, interface, a) };
 }
 
 event osquery::state::interfaces::scheduled_remove_host(host_id: string) {
@@ -50,7 +50,7 @@ event osquery::host_disconnected(host_id: string) {
 	}
 
 	# Schedule removal of host
-	schedule 30sec { osquery::state::interfaces::scheduled_remove_host(host_id) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::interfaces::scheduled_remove_host(host_id) };
 }
 
 hook osquery::getIPsOfHost(host_id: string, addresses: vector of addr)

@@ -19,7 +19,6 @@ export {
 		protocol: int &log &optional;
                 path: string &log &optional;
 		family: int &log &optional;
-		start_time: int &log &optional;
 		success: int &log &optional;
         };
 }
@@ -39,7 +38,6 @@ event osquery::socket_state_added(host_id: string, socket_info: osquery::SocketI
 	if (socket_info$connection?$protocol) { info$protocol = socket_info$connection$protocol; }
 	if (socket_info?$path) { info$path = socket_info$path; }
 	if (socket_info?$family) { info$family = socket_info$family; }
-	if (socket_info?$start_time) { info$start_time = socket_info$start_time; }
 	if (socket_info?$success) { info$success = socket_info$success; }
 
         Log::write(LOG, info);
@@ -60,7 +58,6 @@ event osquery::socket_state_removed(host_id: string, socket_info: osquery::Socke
 	if (socket_info$connection?$protocol) { info$protocol = socket_info$connection$protocol; }
 	if (socket_info?$path) { info$path = socket_info$path; }
 	if (socket_info?$family) { info$family = socket_info$family; }
-	if (socket_info?$start_time) { info$start_time = socket_info$start_time; }
 	if (socket_info?$success) { info$success = socket_info$success; }
 
         Log::write(LOG, info);

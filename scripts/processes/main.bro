@@ -27,7 +27,7 @@ event osquery::state::processes::scheduled_remove(host_id: string, pid: int, ev:
 
 event osquery::process_removed(t: time, host_id: string, pid: int, name: string, path: string, cmdline: string, 
 				 cwd: string,root: string,  uid: int, gid: int, on_dist: int, start_time: int, parent: int, pgroup: int) {
-	schedule 30sec { osquery::state::processes::scheduled_remove(host_id, pid, F, T) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::processes::scheduled_remove(host_id, pid, F, T) };
 }
 
 event osquery::state::processes::scheduled_remove_host(host_id: string) {
@@ -50,7 +50,7 @@ event osquery::state::processes::state_outdated(resultInfo: osquery::ResultInfo,
 	if (resultInfo$host !in process_events_freshness) { return; }
 	
 	process_events_freshness[resultInfo$host][pid] = F;
-	schedule 30sec { osquery::state::processes::scheduled_remove(resultInfo$host, pid, T, F) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::processes::scheduled_remove(resultInfo$host, pid, T, F) };
 }
 
 event osquery::state::processes::verify(host_id: string) {
@@ -67,7 +67,7 @@ event osquery::state::processes::verify(host_id: string) {
 
 	# Skip if host is offline or no state
 	if (!host_freshness[host_id] || host_id !in process_events) { 
-		schedule 60sec { osquery::state::processes::verify(host_id) };
+		schedule osquery::STATE_MAINTENANCE_INTERVAL { osquery::state::processes::verify(host_id) };
 		return; 
 	}
 
@@ -86,7 +86,7 @@ event osquery::state::processes::verify(host_id: string) {
 	}
 	
 	# Schedule next verification
-	schedule 60sec { osquery::state::processes::verify(host_id) };
+	schedule osquery::STATE_MAINTENANCE_INTERVAL { osquery::state::processes::verify(host_id) };
 }
 
 event osquery::host_connected(host_id: string) {
@@ -114,5 +114,5 @@ event osquery::host_disconnected(host_id: string) {
 	}
 
 	# Schedule removal of host
-	schedule 30sec { osquery::state::processes::scheduled_remove_host(host_id) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::processes::scheduled_remove_host(host_id) };
 }

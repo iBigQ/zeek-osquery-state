@@ -63,8 +63,16 @@ function add_entry(host_id: string, ev: bool, pid: int, path: string, cmdline: s
 	# Insert into state
 	if (host_id !in procs) { procs[host_id] = table(); }
 	if (pid in procs[host_id]) {
+		local new = T;
+		for (idx in procs[host_id][pid]) {
+			if (osquery::equalProcessInfos(process_info, procs[host_id][pid][idx])) { new = F; }
+		}
+		if (new) {
+			event osquery::process_state_added(host_id, process_info);
+		}
 		procs[host_id][pid] += process_info;
 	} else {
+		event osquery::process_state_added(host_id, process_info);
 		procs[host_id][pid] = vector(process_info);
 	}
 
@@ -74,11 +82,9 @@ function add_entry(host_id: string, ev: bool, pid: int, path: string, cmdline: s
 		process_events_freshness[host_id][pid] = T;
 		# Schedule removal of overriden event entry
 		if (|procs[host_id][pid]| > 1) {
-			schedule 30sec { osquery::state::processes::scheduled_remove(host_id, pid, ev, T) };
+			schedule osquery::STATE_REMOVAL_DELAY { osquery::state::processes::scheduled_remove(host_id, pid, ev, T) };
 		}
 	}
-
-	event osquery::process_state_added(host_id, process_info);
 }
 
 function remove_entry(host_id: string, pid: int, ev: bool, oldest: bool) {
@@ -113,19 +119,23 @@ function remove_entry(host_id: string, pid: int, ev: bool, oldest: bool) {
 	# Remove from state
 	local process_info = procs[host_id][pid][0];
 	if (|procs[host_id][pid]| == 1) {
+		event osquery::process_state_removed(host_id, process_info);
 		delete procs[host_id][pid];
 		# Remove freshness
 		if (ev) { delete process_events_freshness[host_id][pid]; }
 	} else {
 		local process_infos: vector of osquery::ProcessInfo = vector();
+		local old = T;
 		for (idx in procs[host_id][pid]) {
 			if (idx == 0) { next; }
 			process_infos += procs[host_id][pid][idx];
+			if (osquery::equalProcessInfos(process_info, procs[host_id][pid][idx])) { old = F; }
+		}
+		if (old) {
+			event osquery::process_state_removed(host_id, process_info);
 		}
 		procs[host_id][pid] = process_infos;
 	}
-
-	event osquery::process_state_removed(host_id, process_info);
 }
 
 function remove_host(host_id: string) {

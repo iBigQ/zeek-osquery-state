@@ -9,47 +9,43 @@ module osquery::state::sockets;
 
 event osquery::state::sockets::initial_process_open_socket(resultInfo: osquery::ResultInfo, pid: int, fd: int, family: int, protocol: int, local_address: string, remote_address: string, local_port: int, remote_port: int) {
 	local path: string = "";
-	local start_time = -1;
 	local success: int = 1;
 	local state: string = "connect";
 	local connection_tuple = osquery::create_connection_tuple(local_address, remote_address, local_port, remote_port, protocol);
-	add_entry(resultInfo$host, pid, fd, connection_tuple, state, path, family, start_time, success);
+	add_entry(resultInfo$host, pid, fd, connection_tuple, state, path, family, success);
 }
 
 event osquery::state::sockets::initial_listening_port(resultInfo: osquery::ResultInfo, pid: int, fd: int, family: int, socket: int, protocol: int, local_address: string, local_port: int) {
 	local path: string = "";
-	local start_time = -1;
 	local success: int = 1;
 	local state: string = "bind";
 	local remote_address = "";
 	local remote_port = -1;
 	local connection_tuple = osquery::create_connection_tuple(local_address, remote_address, local_port, remote_port, protocol);
-	add_entry(resultInfo$host, pid, fd, connection_tuple, state, path, family, start_time, success);
+	add_entry(resultInfo$host, pid, fd, connection_tuple, state, path, family, success);
 }
 
 event osquery::process_open_socket_added(t: time, host_id: string, pid: int, fd: int, family: int, protocol: int, local_address: string, remote_address: string, local_port: int, remote_port: int) {
 	local path: string = "";
-	local start_time = -1;
 	local success: int = 1;
 	local state: string = "established";
 	local connection_tuple = osquery::create_connection_tuple(local_address, remote_address, local_port, remote_port, protocol);
-	add_entry(host_id, pid, fd, connection_tuple, state, path, family, start_time, success);
+	add_entry(host_id, pid, fd, connection_tuple, state, path, family, success);
 }
 
 event osquery::listening_port_added(t: time, host_id: string, pid: int, fd: int, family: int, socket: int, protocol: int, local_address: string, local_port: int) {
 	local path: string = "";
-	local start_time = -1;
 	local success: int = 1;
 	local state: string = "listening";
 	local remote_address = "";
 	local remote_port = -1;
 	local connection_tuple = osquery::create_connection_tuple(local_address, remote_address, local_port, remote_port, protocol);
-	add_entry(host_id, pid, fd, connection_tuple, state, path, family, start_time, success);
+	add_entry(host_id, pid, fd, connection_tuple, state, path, family, success);
 }
 
 event osquery::socket_event_added(t: time, host_id: string, action: string, pid: int, fd: int, path: string, family: int, protocol: int, local_address: string, remote_address: string, local_port: int, remote_port: int, start_time: int, success: int) {
 	local connection_tuple = osquery::create_connection_tuple(local_address, remote_address, local_port, remote_port, protocol);
-	add_entry(host_id, pid, fd, connection_tuple, action, path, family, start_time, success);
+	add_entry(host_id, pid, fd, connection_tuple, action, path, family, success);
 }
 
 event osquery::state::sockets::scheduled_remove(host_id: string, pid: int, fd: int, state: string, oldest: bool) {
@@ -58,12 +54,12 @@ event osquery::state::sockets::scheduled_remove(host_id: string, pid: int, fd: i
 
 event osquery::process_open_socket_removed(t: time, host_id: string, pid: int, fd: int, family: int, protocol: int, local_address: string, remote_address: string, local_port: int, remote_port: int) {
 	local state: string = "established";
-	schedule 30sec { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state, T) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state, T) };
 }
 
 event osquery::listening_port_removed(t: time, host_id: string, pid: int, fd: int, family: int, socket: int, protocol: int, local_address: string, local_port: int) {
 	local state: string = "listening";
-	schedule 30sec { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state, T) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state, T) };
 }
 
 event osquery::state::sockets::scheduled_remove_host(host_id: string) {
@@ -87,7 +83,7 @@ event osquery::state::sockets::state_outdated(resultInfo: osquery::ResultInfo, p
 	if (resultInfo$host !in socket_events_freshness) { return; }
 
 	socket_events_freshness[resultInfo$host][pid, fd] = F;
-	schedule 30sec { osquery::state::sockets::scheduled_remove(resultInfo$host, pid, fd, state, F) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::sockets::scheduled_remove(resultInfo$host, pid, fd, state, F) };
 }
 
 event osquery::state::sockets::verify(host_id: string) {
@@ -105,7 +101,7 @@ event osquery::state::sockets::verify(host_id: string) {
 
 	# Skip if host is offline or no state
 	if (!host_freshness[host_id] || host_id !in socket_events) { 
-		schedule 60sec { osquery::state::sockets::verify(host_id) };
+		schedule osquery::STATE_MAINTENANCE_INTERVAL { osquery::state::sockets::verify(host_id) };
 		return; 
 	}
 
@@ -139,7 +135,7 @@ event osquery::state::sockets::verify(host_id: string) {
 	}
 	
 	# Schedule next verification
-	schedule 60sec { osquery::state::sockets::verify(host_id) };
+	schedule osquery::STATE_MAINTENANCE_INTERVAL { osquery::state::sockets::verify(host_id) };
 
 }
 
@@ -172,5 +168,5 @@ event osquery::host_disconnected(host_id: string) {
 	}
 
 	# Schedule removal of host
-	schedule 30sec { osquery::state::sockets::scheduled_remove_host(host_id) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::sockets::scheduled_remove_host(host_id) };
 }

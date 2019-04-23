@@ -18,7 +18,6 @@ export {
 		state: string;
 		path: string &optional;
 		family: int &optional;
-		start_time: int &optional;
 		success: int &optional;
 	};
 
@@ -133,7 +132,28 @@ function equalSocketInfos(sock1: SocketInfo, sock2: SocketInfo): bool {
 	if (sock1$state != sock2$state) {
 		return F;
 	}
-	return equalConnectionTuples(sock1$connection, sock2$connection);
+	if (!equalConnectionTuples(sock1$connection, sock2$connection)) {
+		return F;
+	}
+	if (sock1?$path != sock2?$path) {
+		return F;
+	}
+	if (sock1?$path && sock1$path != sock2$path) {
+		return F;
+	}
+	if (sock1?$family != sock2?$family) {
+		return F;
+	}
+	if (sock1?$family && sock1$family != sock2$family) {
+		return F;
+	}
+	if (sock1?$success != sock2?$success) {
+		return F;
+	}
+	if (sock1?$success && sock1$success != sock2$success) {
+		return F;
+	}
+	return T;
 }
 
 function create_connection_tuple(local_address: string, remote_address: string, local_port: int, remote_port: int, protocol: int): ConnectionTuple {
