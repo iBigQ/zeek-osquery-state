@@ -118,7 +118,7 @@ event osquery::state::sockets::verify(host_id: string) {
 
 	if (|select_binds| != 0) {
 		# Select query
-		query_string = fmt("SELECT x, y, 'bind' FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM listening_ports)" , join_string_vec(select_connects, " UNION "));
+		query_string = fmt("SELECT x, y, 'bind' FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM listening_ports)" , join_string_vec(select_binds, " UNION "));
 	
 		# Send query
 		query = [$ev=osquery::state::sockets::state_outdated, $query=query_string];
