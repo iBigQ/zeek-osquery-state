@@ -87,11 +87,25 @@ event osquery::state::sockets::state_outdated(resultInfo: osquery::ResultInfo, p
 	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::sockets::scheduled_remove(resultInfo$host, pid, fd, state, F) };
 }
 
+function send_maintenance_chunk(host_id: string, select_vec: vector of string, socket_type: string) {
+	local table_name: string;
+	if (socket_type == "bind") { table_name = "listening_ports"; }
+	else if (socket_type == "connect") { table_name = "process_open_sockets"; }
+	else { return; }
+	
+	if (|select_vec| != 0) {
+		# Select query
+		local query_string = fmt("SELECT x, y, '%s' FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM %s)" , socket_type, join_string_vec(select_vec, " UNION "), table_name);
+	
+		# Send query
+		local query = [$ev=osquery::state::sockets::state_outdated, $query=query_string];
+		osquery::execute(query, host_id);
+	}
+}
+
 event osquery::state::sockets::verify(host_id: string) {
-	local query: osquery::Query;
 	local select_binds: vector of string = vector();
 	local select_connects: vector of string = vector();
-	local query_string: string;
 
 	# Host successfully removed from state
 	if (host_id !in host_freshness) { 
@@ -107,33 +121,34 @@ event osquery::state::sockets::verify(host_id: string) {
 	}
 
 	# Collect event socket state
+	local bind_count = 0;
+	local connect_count = 0;
 	for ([pid, fd] in socket_events[host_id]) {
 		for (idx in socket_events[host_id][pid, fd]) {
 			if (socket_events[host_id][pid, fd][idx]$state == "bind") {
 				select_binds += fmt("SELECT %d AS x, %d AS y", pid, fd);
+				bind_count += 1;
+				if (bind_count >= osquery::MAX_VALIDATION_SELECT) {
+					send_maintenance_chunk(host_id, select_binds, "bind");
+					select_binds = vector();
+					bind_count = 0;
+				}
 			} else if (socket_events[host_id][pid, fd][idx]$state == "connect") {
 				select_connects += fmt("SELECT %d AS x, %d AS y", pid, fd);
+				connect_count += 1;
+				if (connect_count >= osquery::MAX_VALIDATION_SELECT) {
+					send_maintenance_chunk(host_id, select_connects, "connect");
+					select_connects = vector();
+					connect_count = 0;
+				}
+
 			}
 		}
 	}
 
-	if (|select_binds| != 0) {
-		# Select query
-		query_string = fmt("SELECT x, y, 'bind' FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM listening_ports)" , join_string_vec(select_binds, " UNION "));
-	
-		# Send query
-		query = [$ev=osquery::state::sockets::state_outdated, $query=query_string];
-		osquery::execute(query, host_id);
-	}
-
-	if (|select_connects| != 0) {
-		# Select query
-		query_string = fmt("SELECT x, y, 'connect' FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM process_open_sockets)" , join_string_vec(select_connects, " UNION "));
-	
-		# Send query
-		query = [$ev=osquery::state::sockets::state_outdated, $query=query_string];
-		osquery::execute(query, host_id);
-	}
+	# Verify last chunks
+	send_maintenance_chunk(host_id, select_binds, "bind");
+	send_maintenance_chunk(host_id, select_connects, "connect");
 	
 	# Schedule next verification
 	schedule osquery::STATE_MAINTENANCE_INTERVAL { osquery::state::sockets::verify(host_id) };

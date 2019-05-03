@@ -7,4 +7,7 @@ export {
 	
 	# Interval to probe if event-based state entries are still valid
 	global STATE_MAINTENANCE_INTERVAL: interval = 20sec &redef;
+
+	# Maximum number of parallel select terms when validating state
+	global MAX_VALIDATION_SELECT: count = 450 &redef;
 }
