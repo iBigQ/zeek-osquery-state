@@ -19,6 +19,15 @@ export {
 	global socket_state_removed: event(host_id: string, socket_info: SocketInfo);
 }
 
+#@if ( Cluster::local_node_type() == Cluster::MANAGER )
+## Manager need ability to forward state to workers.
+#event zeek_init() {
+#	Broker::auto_publish(Cluster::worker_topic, osquery::socket_state_added);
+#	Broker::auto_publish(Cluster::worker_topic, osquery::socket_host_state_removed);
+#	Broker::auto_publish(Cluster::worker_topic, osquery::socket_state_removed);
+#}
+#@endif
+
 module osquery::state::sockets;
 
 export {
@@ -64,26 +73,37 @@ function add_entry(host_id: string, pid: int, fd: int, connection_tuple: osquery
 	# Insert into state
 	if (host_id !in sockets) { sockets[host_id] = table(); }
 	if ([pid, fd] in sockets[host_id]) {
-		local new = T;
-		for (idx in sockets[host_id][pid, fd]) {
-			if (osquery::equalSocketInfos(socket_info, sockets[host_id][pid, fd][idx])) { new = F; }
-		}
-		if (new) {
-			event osquery::socket_state_added(host_id, socket_info);
+		if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+			local new = T;
+			for (idx in sockets[host_id][pid, fd]) {
+				if (osquery::equalSocketInfos(socket_info, sockets[host_id][pid, fd][idx])) { new = F; }
+			}
+			if (new) {
+				event osquery::socket_state_added(host_id, socket_info);
+				Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_added, host_id, socket_info));
+			}
+		} else {
+			# Synchronization on worker
 		}
 		sockets[host_id][pid, fd] += socket_info;
 	} else {
-		event osquery::socket_state_added(host_id, socket_info);
+		if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+			event osquery::socket_state_added(host_id, socket_info);
+			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_added, host_id, socket_info));
+		}
 		sockets[host_id][pid, fd] = vector(socket_info);
 	}
 
 	# For event entry
 	if (state == "connect" || state == "bind") {
 		# Set fresh
+		if (host_id !in socket_events_freshness) { socket_events_freshness[host_id] = table(); }
 		socket_events_freshness[host_id][pid, fd] = T;
 		# Schedule removal of overriden event entry
-		if (|sockets[host_id][pid, fd]| > 1) {
-			schedule osquery::STATE_REMOVAL_DELAY { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state, T) };
+		if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+			if (|sockets[host_id][pid, fd]| > 1) {
+				schedule osquery::STATE_REMOVAL_DELAY { osquery::state::sockets::scheduled_remove(host_id, pid, fd, state, T) };
+			}
 		}
 	}
 }
@@ -123,20 +143,32 @@ function remove_entry(host_id: string, pid: int, fd: int, state: string, oldest:
 	# Remove from state
 	local socket_info = sockets[host_id][pid, fd][0];
 	if (|sockets[host_id][pid, fd]| == 1) {
-		event osquery::socket_state_removed(host_id, socket_info);
+		if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+			event osquery::socket_state_removed(host_id, socket_info);
+			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_removed, host_id, socket_info));
+		}
 		delete sockets[host_id][pid, fd];
 		# Remove freshness
 		if (state == "connect" || state == "bind") { delete socket_events_freshness[host_id][pid, fd]; }
 	} else {
 		local socket_infos: vector of osquery::SocketInfo = vector();
 		local old = T;
-		for (idx in sockets[host_id][pid, fd]) {
-			if (idx == 0) { next; }
-			socket_infos += sockets[host_id][pid, fd][idx];
-			if (osquery::equalSocketInfos(socket_info, sockets[host_id][pid, fd][idx])) { old = F; }
-		}
-		if (old) {
-			event osquery::socket_state_removed(host_id, socket_info);
+		if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+			for (idx in sockets[host_id][pid, fd]) {
+				if (idx == 0) { next; }
+				socket_infos += sockets[host_id][pid, fd][idx];
+				if (osquery::equalSocketInfos(socket_info, sockets[host_id][pid, fd][idx])) { old = F; }
+			}
+			if (old) {
+				event osquery::socket_state_removed(host_id, socket_info);
+				Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_removed, host_id, socket_info));
+			}
+		} else {
+			# Synchronization on worker
+			for (idx in sockets[host_id][pid, fd]) {
+				if (idx == |socket_infos| && osquery::equalSocketInfos(socket_info, sockets[host_id][pid, fd][idx])) { next; }
+				socket_infos += sockets[host_id][pid, fd][idx];
+			}
 		}
 		sockets[host_id][pid, fd] = socket_infos;
 	}
@@ -151,9 +183,12 @@ function remove_host(host_id: string) {
 		sockets = sockets_vec[idx];
 		if (host_id !in sockets) { next; }
 
-		for ([pid, fd] in sockets[host_id]) {
-			for (idx in sockets[host_id][pid, fd]) {
-				event osquery::socket_state_removed(host_id, sockets[host_id][pid, fd][idx]);
+		if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+			for ([pid, fd] in sockets[host_id]) {
+				for (idx in sockets[host_id][pid, fd]) {
+					event osquery::socket_state_removed(host_id, sockets[host_id][pid, fd][idx]);
+					Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_removed, host_id, sockets[host_id][pid, fd][idx]));
+				}
 			}
 		}
 		delete sockets[host_id];

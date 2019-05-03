@@ -16,6 +16,7 @@ export {
         };
 }
 
+@if ( !Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER )
 event osquery::user_state_added(host_id: string, user_info: osquery::UserInfo) {
         local info: Info = [
 		$host = host_id,
@@ -41,6 +42,7 @@ event osquery::user_state_removed(host_id: string, user_info: osquery::UserInfo)
 
         Log::write(LOG, info);
 }
+@endif
 
 event bro_init() {
         Log::create_stream(LOG, [$columns=Info, $path="osq-user-state"]);

@@ -26,6 +26,15 @@ export {
 	global user_state_removed: event(host_id: string, user_info: UserInfo);
 }
 
+#@if ( Cluster::local_node_type() == Cluster::MANAGER )
+## Manager need ability to forward state to workers.
+#event zeek_init() {
+#	Broker::auto_publish(Cluster::worker_topic, osquery::user_state_added);
+#	Broker::auto_publish(Cluster::worker_topic, osquery::user_host_state_removed);
+#	Broker::auto_publish(Cluster::worker_topic, osquery::user_state_removed);
+#}
+#@endif
+
 module osquery::state::users;
 
 export {
@@ -62,8 +71,12 @@ function add_entry(host_id: string, uid: int, gid: int, username: string, user_t
 	}
 
 	# Set fresh
+	if (host_id !in user_freshness) { user_freshness[host_id] = table(); }
 	user_freshness[host_id][user_info$uid] = T;
-	event osquery::user_state_added(host_id, user_info);
+	if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+		event osquery::user_state_added(host_id, user_info);
+		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::user_state_added, host_id, user_info));
+	}
 }
 
 function remove_entry(host_id: string, uid: int) {
@@ -80,14 +93,20 @@ function remove_entry(host_id: string, uid: int) {
 
 	# Remove freshness
 	delete user_freshness[host_id][uid];
-	event osquery::user_state_removed(host_id, user_info);
+	if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+		event osquery::user_state_removed(host_id, user_info);
+		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::user_state_removed, host_id, user_info));
+	}
 }
 
 function remove_host(host_id: string) {
 	if (host_id !in users) { return; }
 
 	for (uid in users[host_id]) {
-		event osquery::user_state_removed(host_id, users[host_id][uid]);
+		if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+			event osquery::user_state_removed(host_id, users[host_id][uid]);
+			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::user_state_removed, host_id, users[host_id][uid]));
+		}
 	}
 	delete users[host_id];
 }

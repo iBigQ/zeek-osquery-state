@@ -10,6 +10,7 @@ export {
                 host: string &log;
 		added: bool &log;
                 pid: int &log;
+                ev: bool &log;
                 path: string &log &optional;
 		cmdline: string &log &optional;
 		uid: int &log &optional;
@@ -17,11 +18,13 @@ export {
         };
 }
 
+@if ( !Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER )
 event osquery::process_state_added(host_id: string, process_info: osquery::ProcessInfo) {
         local info: Info = [
 		$host=host_id,
 		$added=T,
-               	$pid = process_info$pid
+               	$pid = process_info$pid,
+		$ev = process_info$ev
 	];
 	if (process_info?$path) { info$path = process_info$path; }
 	if (process_info?$cmdline) { info$cmdline = process_info$cmdline; }
@@ -35,7 +38,8 @@ event osquery::process_state_removed(host_id: string, process_info: osquery::Pro
         local info: Info = [
 		$host=host_id,
 		$added=F,
-               	$pid = process_info$pid
+               	$pid = process_info$pid,
+		$ev = process_info$ev
 	];
 	if (process_info?$path) { info$path = process_info$path; }
 	if (process_info?$cmdline) { info$cmdline = process_info$cmdline; }
@@ -44,6 +48,7 @@ event osquery::process_state_removed(host_id: string, process_info: osquery::Pro
 
         Log::write(LOG, info);
 }
+@endif
 
 event bro_init() {
         Log::create_stream(LOG, [$columns=Info, $path="osq-process-state"]);

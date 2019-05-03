@@ -27,6 +27,7 @@ event osquery::state::interfaces::scheduled_remove_host(host_id: string) {
 
 	# Indicate state changes
 	event osquery::interface_host_state_removed(host_id);
+	Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::interface_host_state_removed, host_id));
 	remove_host(host_id);
 
 	# Delete freshness

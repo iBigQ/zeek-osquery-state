@@ -5,6 +5,7 @@ module osquery;
 export {
 	type ProcessInfo: record {
 		pid: int;
+		ev: bool;
 		path: string &optional;
 		cmdline: string &optional;
 		uid: int &optional;
@@ -32,6 +33,9 @@ function equalProcessKeys(proc1: ProcessInfo, proc2: ProcessInfo): bool {
 
 function equalProcessInfos(proc1: ProcessInfo, proc2: ProcessInfo): bool {
 	if (!equalProcessKeys(proc1, proc2)) {
+		return F;
+	}
+	if (proc1$ev != proc2$ev) {
 		return F;
 	}
 	if (proc1?$path != proc2?$path) {

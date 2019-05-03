@@ -30,6 +30,15 @@ export {
 	global interface_state_removed: event(host_id: string, name: string, mac: string, addr_info: AddrInfo);
 }
 
+#@if ( Cluster::local_node_type() == Cluster::MANAGER )
+## Manager need ability to forward state to workers.
+#event zeek_init() {
+#	Broker::auto_publish(Cluster::worker_topic, osquery::interface_state_added);
+#	Broker::auto_publish(Cluster::worker_topic, osquery::interface_host_state_removed);
+#	Broker::auto_publish(Cluster::worker_topic, osquery::interface_state_removed);
+#}
+#@endif
+
 module osquery::state::interfaces;
 
 export {
@@ -71,8 +80,12 @@ function add_entry(host_id: string, name: string, mac: string, ip: addr, mask: s
 	interfaces[host_id][name]$addrs += addr_info;
 
 	# Set fresh
+	if (host_id !in interface_freshness) { interface_freshness[host_id] = table(); }
 	interface_freshness[host_id][name, ip] = T;
-	event osquery::interface_state_added(host_id, name, mac, addr_info);
+	if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+		event osquery::interface_state_added(host_id, name, mac, addr_info);
+		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::interface_state_added, host_id, name, mac, addr_info));
+	}
 }
 
 function remove_entry(host_id: string, name: string, ip: addr) {
@@ -102,7 +115,10 @@ function remove_entry(host_id: string, name: string, ip: addr) {
 	# Remove freshness
 	delete interface_freshness[host_id][name, ip];
 	local mac = interfaces[host_id][name]$mac;
-	event osquery::interface_state_removed(host_id, name, mac, addr_info);
+	if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+		event osquery::interface_state_removed(host_id, name, mac, addr_info);
+		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::interface_state_removed, host_id, name, mac, addr_info));
+	}
 }
 
 function remove_host(host_id: string) {
@@ -112,7 +128,10 @@ function remove_host(host_id: string) {
 		local mac = interfaces[host_id][name]$mac;
 		for (idx in interfaces[host_id][name]$addrs) {
 			local addr_info = interfaces[host_id][name]$addrs[idx];
-			event osquery::interface_state_removed(host_id, name, mac, addr_info);
+			if (!Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER) {
+				event osquery::interface_state_removed(host_id, name, mac, addr_info);
+				Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::interface_state_removed, host_id, name, mac, addr_info));
+			}
 		}
 	}
 	delete interfaces[host_id];
