@@ -1,5 +1,8 @@
 module osquery;
 
+@load zeek-osquery-framework
+@load zeek-osquery-queries
+
 export {
 
 	# Delay before entries are removed from state
