@@ -77,8 +77,8 @@ function schedule_remove(host_id: string, pid: int, ev: bool, oldest: bool) {
 	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::processes::scheduled_remove(host_id, pid, ev, oldest) };
 }
 
-function _add_event(host_id: string, pid: int, path: string, cmdline: string, uid: int, parent: int) {
-	add_entry(host_id, T, pid, path, cmdline, uid, parent);
+function _add_event(host_id: string, pid: int, name: string, path: string, cmdline: string, uid: int, parent: int) {
+	add_entry(host_id, T, pid, name, path, cmdline, uid, parent);
 
 	# Schedule removal of overriden event entry
 	if (pid !in deleting_process_events[host_id]) { deleting_process_events[host_id][pid] = 0; }
@@ -92,19 +92,20 @@ function _add_event(host_id: string, pid: int, path: string, cmdline: string, ui
 	}
 }
 
-event osquery::state::processes::initial_state(resultInfo: osquery::ResultInfo, pid: int, path: string, cmdline: string, cwd: string, uid: int, gid: int,
+event osquery::state::processes::initial_state(resultInfo: osquery::ResultInfo, pid: int, name: string, path: string, cmdline: string, cwd: string, uid: int, gid: int,
 		parent: int) {
-	_add_event(resultInfo$host, pid, path, cmdline, uid, parent);
+	_add_event(resultInfo$host, pid, name, path, cmdline, uid, parent);
 }
 
 event osquery::process_event_added(t: time, host_id: string, pid: int, path: string, cmdline: string, 
 				 cwd: string, uid: int, gid: int, start_time: int, parent: int) {
-	_add_event(host_id, pid, path, cmdline, uid, parent);
+	local name = "";
+	_add_event(host_id, pid, name, path, cmdline, uid, parent);
 }
 
 event osquery::process_added(t: time, host_id: string, pid: int, name: string, path: string, cmdline: string, 
 				 cwd: string,root: string,  uid: int, gid: int, on_dist: int, start_time: int, parent: int, pgroup: int) {
-	add_entry(host_id, F, pid, path, cmdline, uid, parent);
+	add_entry(host_id, F, pid, name, path, cmdline, uid, parent);
 }
 
 event osquery::process_removed(t: time, host_id: string, pid: int, name: string, path: string, cmdline: string, 
@@ -144,6 +145,18 @@ event osquery::state::processes::state_outdated(resultInfo: osquery::ResultInfo,
 	schedule_remove(host_id, pid, T, F);
 }
 
+function send_maintenance_chunk(host_id: string, select_vec: vector of string, cookie: string) {
+	if (|select_vec| == 0) { return; }
+
+	# Select query
+	local query_string = fmt("SELECT x FROM (%s) WHERE x NOT IN (SELECT pid FROM processes)", join_string_vec(select_vec, " UNION "));
+	#local query_string = fmt("SELECT x FROM (%s) AS b LEFT JOIN (SELECT pid FROM processes WHERE pid != -1) AS o ON b.x = o.pid WHERE o.pid IS NULL", join_string_vec(select_vec, " UNION "));
+
+	# Send query
+	local query = [$ev=osquery::state::processes::state_outdated, $query=query_string, $cookie=cookie];
+	osquery::execute(query, host_id);
+}
+
 event osquery::state::processes::verify(host_id: string) {
 	local query: osquery::Query;
 	local select_pids: vector of string = vector();
@@ -162,10 +175,16 @@ event osquery::state::processes::verify(host_id: string) {
 		return; 
 	}
 
-	# Collect process state
+	# Collect event socket state
+	local select_count = 0;
+	local len: count;
 	local r = cat(rand(0xffffffffffffffff));
 	for (pid in process_events[host_id]) {
-		if (|process_events[host_id][pid]| == 0) { next; }
+		# Number of state entries
+		len = |process_events[host_id][pid]|;
+		if (len == 0) { next; }
+
+		# Already deleting?
 		if (pid !in deleting_process_events[host_id]) {
 			deleting_process_events[host_id][pid] = 0;
 		}
@@ -173,18 +192,21 @@ event osquery::state::processes::verify(host_id: string) {
 			next;
 		}
 
-		select_pids += fmt("SELECT %d AS x", pid);
+		# Update freshness
 		process_events_freshness[host_id][pid] = r;
+
+		# Verify Chunk
+		select_pids += fmt("SELECT %d AS x", pid);
+		select_count += 1;
+		if (select_count >= osquery::MAX_VALIDATION_SELECT) {
+			send_maintenance_chunk(host_id, select_pids, r);
+			select_pids = vector();
+			select_count = 0;
+		}
 	}
 
-	if (|select_pids| != 0) {
-		# Select query
-		query_string = fmt("SELECT x FROM (%s) WHERE x NOT IN (SELECT pid FROM processes)" , join_string_vec(select_pids, " UNION "));
-	
-		# Send query
-		query = [$ev=osquery::state::processes::state_outdated, $query=query_string, $cookie=r];
-		osquery::execute(query, host_id);
-	}
+	# Verify last chunk
+	send_maintenance_chunk(host_id, select_pids, r);
 	
 	# Schedule next verification
 	schedule osquery::STATE_MAINTENANCE_INTERVAL { osquery::state::processes::verify(host_id) };
@@ -248,7 +270,7 @@ event osquery::host_connected(host_id: string) {
 	connect_balance[host_id] += 1;
 
 	# Retrieve initial state
-        local ev_processes = [$ev=osquery::state::processes::initial_state, $query="SELECT pid, path, cmdline, cwd, uid, gid, parent FROM processes WHERE 1=1"];
+        local ev_processes = [$ev=osquery::state::processes::initial_state, $query="SELECT pid, name, path, cmdline, cwd, uid, gid, parent FROM processes WHERE 1=1"];
 	osquery::execute(ev_processes, host_id);
 
 	# Schedule maintenance

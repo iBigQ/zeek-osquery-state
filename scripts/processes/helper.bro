@@ -30,7 +30,7 @@ export {
 	global host_maintenance: set[string];
 
 	# Add an entry to the process state
-	global add_entry: function(host_id: string, ev: bool, pid: int, path: string, cmdline: string, uid: int, parent: int);
+	global add_entry: function(host_id: string, ev: bool, pid: int, name: string, path: string, cmdline: string, uid: int, parent: int);
 
 	# Remove an entry from the process state
 	global remove_entry: function(host_id: string, pid: int, ev: bool, oldest: bool);
@@ -41,8 +41,9 @@ export {
 
 global scheduled_remove: event(host_id: string, pid: int, ev: bool, oldest: bool);
 
-function add_entry(host_id: string, ev: bool, pid: int, path: string, cmdline: string, uid: int, parent: int) {
+function add_entry(host_id: string, ev: bool, pid: int, name: string, path: string, cmdline: string, uid: int, parent: int) {
 	local process_info: osquery::ProcessInfo = [$pid=pid, $ev=ev];
+	if (name != "") { process_info$name = name; }
 	if (path != "") { process_info$path = path; }
 	if (cmdline != "") { process_info$cmdline = cmdline; }
 	if (uid != -1) { process_info$uid = uid; }

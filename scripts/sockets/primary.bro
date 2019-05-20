@@ -191,7 +191,8 @@ function send_maintenance_chunk(host_id: string, select_vec: vector of string, s
 	
 	if (|select_vec| != 0) {
 		# Select query
-		local query_string = fmt("SELECT x, y, '%s' FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM %s)" , socket_type, join_string_vec(select_vec, " UNION "), table_name);
+		local query_string = fmt("SELECT x, y, '%s' FROM (%s) WHERE (x, y) NOT IN (SELECT pid, fd FROM %s)", socket_type, join_string_vec(select_vec, " UNION "), table_name);
+		#local query_string = fmt("SELECT x, y, '%s' FROM (%s) AS b LEFT JOIN (SELECT pid, fd FROM %s WHERE family = 2 AND pid != -1) AS o ON b.x = o.pid AND b.y = o.fd WHERE o.pid IS NULL", socket_type, join_string_vec(select_vec, " UNION "), table_name);
 	
 		# Send query
 		local query = [$ev=osquery::state::sockets::state_outdated, $query=query_string, $cookie=cookie];
@@ -233,6 +234,9 @@ event osquery::state::sockets::verify(host_id: string) {
 		if (deleting_events[host_id][pid, fd] >= |socket_events[host_id][pid, fd]|) {
 			next;
 		}
+
+		# Update freshness
+		socket_events_freshness[host_id][pid,fd] = r;
 
 		# Verify bind
 		if (socket_events[host_id][pid, fd][len-1]$state == "bind") {

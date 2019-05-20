@@ -29,6 +29,12 @@ function equalProcessInfos(proc1: ProcessInfo, proc2: ProcessInfo): bool {
 	if (proc1$ev != proc2$ev) {
 		return F;
 	}
+	if (proc1?$name != proc2?$name) {
+		return F;
+	}
+	if (proc1?$name && proc1$name != proc2$name) {
+		return F;
+	}
 	if (proc1?$path != proc2?$path) {
 		return F;
 	}

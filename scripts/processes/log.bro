@@ -11,6 +11,7 @@ export {
 		added: bool &log;
                 pid: int &log;
                 ev: bool &log;
+                name: string &log &optional;
                 path: string &log &optional;
 		cmdline: string &log &optional;
 		uid: int &log &optional;
@@ -26,6 +27,7 @@ event osquery::process_state_added(host_id: string, process_info: osquery::Proce
                	$pid = process_info$pid,
 		$ev = process_info$ev
 	];
+	if (process_info?$name) { info$name = process_info$name; }
 	if (process_info?$path) { info$path = process_info$path; }
 	if (process_info?$cmdline) { info$cmdline = process_info$cmdline; }
 	if (process_info?$uid) { info$uid = process_info$uid; }
@@ -41,6 +43,7 @@ event osquery::process_state_removed(host_id: string, process_info: osquery::Pro
                	$pid = process_info$pid,
 		$ev = process_info$ev
 	];
+	if (process_info?$name) { info$name = process_info$name; }
 	if (process_info?$path) { info$path = process_info$path; }
 	if (process_info?$cmdline) { info$cmdline = process_info$cmdline; }
 	if (process_info?$uid) { info$uid = process_info$uid; }

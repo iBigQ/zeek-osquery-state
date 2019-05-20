@@ -6,6 +6,7 @@ export {
 	type ProcessInfo: record {
 		pid: int;
 		ev: bool;
+		name: string &optional;
 		path: string &optional;
 		cmdline: string &optional;
 		uid: int &optional;
