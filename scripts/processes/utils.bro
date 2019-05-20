@@ -3,15 +3,6 @@
 module osquery;
 
 export {
-	type ProcessInfo: record {
-		pid: int;
-		ev: bool;
-		path: string &optional;
-		cmdline: string &optional;
-		uid: int &optional;
-		parent: int &optional;
-	};
-
 	## Check if two process infos have equal keys
 	##
 	## <params missing>

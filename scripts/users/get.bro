@@ -20,7 +20,9 @@ function getUserInfosByHostID(host_id: string): set[UserInfo] {
 	if (host_id !in osquery::state::users::users) { return user_infos; }
 
 	for (uid in osquery::state::users::users[host_id]) {
-		add user_infos[osquery::state::users::users[host_id][uid]];
+		for (idx in osquery::state::users::users[host_id][uid]) {
+			add user_infos[osquery::state::users::users[host_id][uid][idx]];
+		}
 	}
 
 	return user_infos;
@@ -30,6 +32,6 @@ function getUserInfoByHostID(host_id: string, uid: int): vector of UserInfo {
 	if (host_id !in osquery::state::users::users) { return vector(); }
 	if (uid !in osquery::state::users::users[host_id]) { return vector(); }
 
-	return vector(osquery::state::users::users[host_id][uid]);
+	return osquery::state::users::users[host_id][uid];
 }
 

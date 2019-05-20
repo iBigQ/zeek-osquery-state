@@ -3,24 +3,6 @@
 module osquery;
 
 export {
-	type ConnectionTuple: record {
-		local_address: addr &optional;
-		remote_address: addr &optional;
-		local_port: int &optional;
-		remote_port: int &optional;
-		protocol: int &optional;
-	};
-
-	type SocketInfo: record {
-		pid: int;
-		fd: int;
-		connection: ConnectionTuple &default=[];
-		state: string;
-		path: string &optional;
-		family: int &optional;
-		success: int &optional;
-	};
-
 	## Checks if the connection is described by the connection pattern
 	##
 	## <params missing>

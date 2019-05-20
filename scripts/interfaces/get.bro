@@ -19,8 +19,10 @@ function getAddrInfosByHostID(host_id: string): set[AddrInfo] {
 	if (host_id !in osquery::state::interfaces::interfaces) { return addr_infos; }
 
 	for (name in osquery::state::interfaces::interfaces[host_id]) {
-		for (idx in osquery::state::interfaces::interfaces[host_id][name]$addrs) {
-			add addr_infos[osquery::state::interfaces::interfaces[host_id][name]$addrs[idx]];
+		for (idx in osquery::state::interfaces::interfaces[host_id][name]) {
+			if (osquery::state::interfaces::interfaces[host_id][name][idx]?$addr_info) {
+				add addr_infos[osquery::state::interfaces::interfaces[host_id][name][idx]$addr_info];
+			}
 		}
 	}
 
@@ -32,8 +34,11 @@ function getHostIDsByAddress(a: addr): set[string] {
 
 	for (host_id in osquery::state::interfaces::interfaces) {
 		for (name in osquery::state::interfaces::interfaces[host_id]) {
-			for (idx in osquery::state::interfaces::interfaces[host_id][name]$addrs) {
-				if (osquery::state::interfaces::interfaces[host_id][name]$addrs[idx]$ip == a) {
+			for (idx in osquery::state::interfaces::interfaces[host_id][name]) {
+				if (!osquery::state::interfaces::interfaces[host_id][name][idx]?$addr_info) {
+					next;
+				}
+				if (osquery::state::interfaces::interfaces[host_id][name][idx]$addr_info$ip == a) {
 					add host_ids[host_id];
 					break;
 				}
@@ -44,4 +49,3 @@ function getHostIDsByAddress(a: addr): set[string] {
 
 	return host_ids;
 }
-

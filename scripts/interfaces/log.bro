@@ -11,34 +11,34 @@ export {
 		added: bool &log;
                 name: string &log;
                 mac: string &log;
-                ip: addr &log;
+                ip: addr &log &optional;
                 mask: string &log &optional;
         };
 }
 
 @if ( !Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER )
-event osquery::interface_state_added(host_id: string, name: string, mac: string, addr_info: osquery::AddrInfo) {
+event osquery::interface_state_added(host_id: string, interface_info: osquery::InterfaceInfo) {
         local info: Info = [
 		$host = host_id,
 		$added = T,
-               	$name = name,
-		$mac = mac,
-		$ip = addr_info$ip
+               	$name = interface_info$name,
+		$mac = interface_info$mac
 	];
-        if (addr_info?$mask) { info$mask = addr_info$mask; }
+        if (interface_info?$addr_info) { info$ip = interface_info$addr_info$ip; }
+        if (interface_info?$addr_info && interface_info$addr_info?$mask) { info$mask = interface_info$addr_info$mask; }
 
         Log::write(LOG, info);
 }
 
-event osquery::interface_state_removed(host_id: string, name: string, mac: string, addr_info: osquery::AddrInfo) {
+event osquery::interface_state_removed(host_id: string, interface_info: osquery::InterfaceInfo) {
         local info: Info = [
 		$host = host_id,
 		$added = F,
-               	$name = name,
-		$mac = mac,
-		$ip = addr_info$ip
+               	$name = interface_info$name,
+		$mac = interface_info$mac
 	];
-        if (addr_info?$mask) { info$mask = addr_info$mask; }
+        if (interface_info?$addr_info) { info$ip = interface_info$addr_info$ip; }
+        if (interface_info?$addr_info && interface_info$addr_info?$mask) { info$mask = interface_info$addr_info$mask; }
 
         Log::write(LOG, info);
 }
