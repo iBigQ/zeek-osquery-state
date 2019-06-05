@@ -1,10 +1,6 @@
 module osquery;
 
-@load zeek-osquery-framework
-@load zeek-osquery-queries
-
 export {
-
 	# Delay before entries are removed from state
 	global STATE_REMOVAL_DELAY: interval = 10sec &redef;
 	
