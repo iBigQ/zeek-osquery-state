@@ -24,17 +24,17 @@ export {
 	## Event when added to the state of sockets
 	##
 	## <params missing>
-	global socket_state_added: event(host_id: string, socket_info: SocketInfo);
+	global socket_state_added: event(t: time, host_id: string, socket_info: SocketInfo);
 	
 	## Event when removing a host from the state of sockets
 	##
 	## <params missing>
-	global socket_host_state_removed: event(host_id: string);
+	global socket_host_state_removed: event(t: time, now: time, host_id: string);
 	
 	## Event when removing from the state of sockets
 	##
 	## <params missing>
-	global socket_state_removed: event(host_id: string, socket_info: SocketInfo);
+	global socket_state_removed: event(t: time, now: time, host_id: string, socket_info: SocketInfo);
 }
 
 module osquery::state::sockets;

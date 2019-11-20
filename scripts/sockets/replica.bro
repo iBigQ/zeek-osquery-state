@@ -2,7 +2,7 @@
 
 module osquery::state::sockets;
 
-event osquery::socket_state_added(host_id: string, socket_info: osquery::SocketInfo) &priority=10 {
+event osquery::socket_state_added(t: time, host_id: string, socket_info: osquery::SocketInfo) &priority=10 {
 	local pid = socket_info$pid;
 	local fd = socket_info$fd;
 
@@ -25,13 +25,13 @@ event osquery::socket_state_added(host_id: string, socket_info: osquery::SocketI
 	}
 }
 
-event osquery::socket_host_state_removed(host_id: string) &priority=10 {
+event osquery::socket_host_state_removed(t: time, now: time, host_id: string) &priority=10 {
 	if (host_id in process_open_sockets) { delete process_open_sockets[host_id]; }
 	if (host_id in listening_ports) { delete listening_ports[host_id]; }
 	if (host_id in socket_events) { delete socket_events[host_id]; }
 }
 
-event osquery::socket_state_removed(host_id: string, socket_info: osquery::SocketInfo) &priority=10 {
+event osquery::socket_state_removed(t: time, now: time, host_id: string, socket_info: osquery::SocketInfo) &priority=10 {
 	local pid = socket_info$pid;
 	local fd = socket_info$fd;
 

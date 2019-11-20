@@ -2,7 +2,7 @@
 
 module osquery::state::processes;
 
-event osquery::process_state_added(host_id: string, process_info: osquery::ProcessInfo) &priority=10 {
+event osquery::process_state_added(t: time, host_id: string, process_info: osquery::ProcessInfo) &priority=10 {
 	local pid = process_info$pid;
 
 	# Select table
@@ -21,12 +21,12 @@ event osquery::process_state_added(host_id: string, process_info: osquery::Proce
 	}
 }
 
-event osquery::process_host_state_removed(host_id: string) &priority=10 {
+event osquery::process_host_state_removed(t: time, now: time, host_id: string) &priority=10 {
 	if (host_id in processes) { delete processes[host_id]; }
 	if (host_id in process_events) { delete process_events[host_id]; }
 }
 
-event osquery::process_state_removed(host_id: string, process_info: osquery::ProcessInfo) &priority=10 {
+event osquery::process_state_removed(t: time, now: time, host_id: string, process_info: osquery::ProcessInfo) &priority=10 {
 	local pid = process_info$pid;
 
 	# Select table

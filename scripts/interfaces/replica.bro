@@ -2,7 +2,7 @@
 
 module osquery::state::interfaces;
 
-event osquery::interface_state_added(host_id: string, interface_info: osquery::InterfaceInfo) &priority=10 {
+event osquery::interface_state_added(t: time, host_id: string, interface_info: osquery::InterfaceInfo) &priority=10 {
 	local name = interface_info$name;
 
 	# Initialize
@@ -16,11 +16,11 @@ event osquery::interface_state_added(host_id: string, interface_info: osquery::I
 	}
 }
 
-event osquery::interface_host_state_removed(host_id: string) &priority=10 {
+event osquery::interface_host_state_removed(t: time, now: time, host_id: string) &priority=10 {
 	if (host_id in interfaces) { delete interfaces[host_id]; }
 }
 
-event osquery::interface_state_removed(host_id: string, interface_info: osquery::InterfaceInfo) &priority=10 {
+event osquery::interface_state_removed(t: time, now: time, host_id: string, interface_info: osquery::InterfaceInfo) &priority=10 {
 	local name = interface_info$name;
 
 	# Check state

@@ -31,18 +31,18 @@ export {
 	global host_maintenance: set[string];
 
 	# Add an entry to the socket state
-	global add_entry: function(host_id: string, pid: int, fd: int, connection_tuple: osquery::ConnectionTuple, state: string, path: string, family: int, success: int);
+	global add_entry: function(t: time, host_id: string, pid: int, fd: int, connection_tuple: osquery::ConnectionTuple, state: string, path: string, family: int, success: int);
 
 	# Remove entries with the ConnectionTuple from the socket state
-	global remove_entry: function(host_id: string, pid: int, fd: int, state: string, oldest: bool);
+	global remove_entry: function(t: time, now: time, host_id: string, pid: int, fd: int, state: string, oldest: bool);
 
 	# Remove all entries for host from the socket state
-	global remove_host: function(host_id: string);
+	global remove_host: function(t: time, now: time, host_id: string);
 }
 
-global scheduled_remove: event(host_id: string, pid: int, fd: int, state: string, oldest: bool);
+global scheduled_remove: event(t: time, host_id: string, pid: int, fd: int, state: string, oldest: bool);
 
-function add_entry(host_id: string, pid: int, fd: int, connection_tuple: osquery::ConnectionTuple, state: string, path: string, family: int, success: int) {
+function add_entry(t: time, host_id: string, pid: int, fd: int, connection_tuple: osquery::ConnectionTuple, state: string, path: string, family: int, success: int) {
 	local socket_info: osquery::SocketInfo = [$pid=pid, $fd=fd, $connection=connection_tuple, $state=state];
 	if (path != "") { socket_info$path = path; }
 	if (family != -1) { socket_info$family = family; }
@@ -66,21 +66,21 @@ function add_entry(host_id: string, pid: int, fd: int, connection_tuple: osquery
 		}
 		# Raise event
 		if (new) {
-			event osquery::socket_state_added(host_id, socket_info);
-			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_added, host_id, socket_info));
+			event osquery::socket_state_added(t, host_id, socket_info);
+			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_added, t, host_id, socket_info));
 		}
 		# Save state
 		sockets[host_id][pid, fd] += socket_info;
 	# New key in state
 	} else {
 		# Raise event
-		event osquery::socket_state_added(host_id, socket_info);
-		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_added, host_id, socket_info));
+		event osquery::socket_state_added(t, host_id, socket_info);
+		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_added, t, host_id, socket_info));
 		sockets[host_id][pid, fd] = vector(socket_info);
 	}
 }
 
-function remove_entry(host_id: string, pid: int, fd: int, state: string, oldest: bool) {
+function remove_entry(t: time, now: time, host_id: string, pid: int, fd: int, state: string, oldest: bool) {
 	# Select table
 	local sockets: SocketState;
 	if (state == "established") { sockets = process_open_sockets; }
@@ -116,8 +116,8 @@ function remove_entry(host_id: string, pid: int, fd: int, state: string, oldest:
 	# Last item in state
 	if (|sockets[host_id][pid, fd]| == 1) {
 		# Raise event
-		event osquery::socket_state_removed(host_id, socket_info);
-		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_removed, host_id, socket_info));
+		event osquery::socket_state_removed(t, now, host_id, socket_info);
+		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_removed, t, now, host_id, socket_info));
 		# Delete state
 		delete sockets[host_id][pid, fd];
 	# Oldest item in state
@@ -132,15 +132,15 @@ function remove_entry(host_id: string, pid: int, fd: int, state: string, oldest:
 		}
 		# Raise event
 		if (old) {
-			event osquery::socket_state_removed(host_id, socket_info);
-			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_removed, host_id, socket_info));
+			event osquery::socket_state_removed(t, now, host_id, socket_info);
+			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_removed, t, now, host_id, socket_info));
 		}
 		# Save state
 		sockets[host_id][pid, fd] = socket_infos;
 	}
 }
 
-function remove_host(host_id: string) {
+function remove_host(t: time, now: time, host_id: string) {
 	# Check if host exists
 	if (host_id !in process_open_sockets && host_id !in listening_ports && host_id !in socket_events) { return; }
 
@@ -153,8 +153,8 @@ function remove_host(host_id: string) {
 		for ([pid, fd] in sockets[host_id]) {
 			for (idx in sockets[host_id][pid, fd]) {
 				# Raise event
-				event osquery::socket_state_removed(host_id, sockets[host_id][pid, fd][idx]);
-				Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_removed, host_id, sockets[host_id][pid, fd][idx]));
+				event osquery::socket_state_removed(t, now, host_id, sockets[host_id][pid, fd][idx]);
+				Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::socket_state_removed, t, now, host_id, sockets[host_id][pid, fd][idx]));
 			}
 		}
 

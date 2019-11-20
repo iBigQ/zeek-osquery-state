@@ -6,7 +6,7 @@
 
 module osquery::state::processes;
 
-event osquery::state::processes::scheduled_remove(host_id: string, pid: int, ev: bool, oldest: bool) {
+event osquery::state::processes::scheduled_remove(t: time, host_id: string, pid: int, ev: bool, oldest: bool) {
 	# Select table
 	local deleting_procs: DeletingProcessState;
 	if (ev) { deleting_procs = deleting_process_events; }
@@ -37,10 +37,10 @@ event osquery::state::processes::scheduled_remove(host_id: string, pid: int, ev:
 	#}
 
 	# Delete
-	remove_entry(host_id, pid, ev, oldest);
+	remove_entry(t, current_time(), host_id, pid, ev, oldest);
 }
 
-function schedule_remove(host_id: string, pid: int, ev: bool, oldest: bool) {
+function schedule_remove(t: time, host_id: string, pid: int, ev: bool, oldest: bool) {
 	# Select table
 	local deleting_procs: DeletingProcessState;
 	if (ev) { deleting_procs = deleting_process_events; }
@@ -74,16 +74,16 @@ function schedule_remove(host_id: string, pid: int, ev: bool, oldest: bool) {
 
 	# Schedule delete
 	#if (skip) { return; }
-	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::processes::scheduled_remove(host_id, pid, ev, oldest) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::processes::scheduled_remove(t, host_id, pid, ev, oldest) };
 }
 
-function _add_event(host_id: string, pid: int, name: string, path: string, cmdline: string, uid: int, parent: int) {
-	add_entry(host_id, T, pid, name, path, cmdline, uid, parent);
+function _add_event(t: time, host_id: string, pid: int, name: string, path: string, cmdline: string, uid: int, parent: int) {
+	add_entry(t, host_id, T, pid, name, path, cmdline, uid, parent);
 
 	# Schedule removal of overriden event entry
 	if (pid !in deleting_process_events[host_id]) { deleting_process_events[host_id][pid] = 0; }
 	if (deleting_process_events[host_id][pid] + 1 < |process_events[host_id][pid]|) {
-		schedule_remove(host_id, pid, T, T);
+		schedule_remove(t, host_id, pid, T, T);
 	}
 
 	# Set fresh
@@ -94,27 +94,27 @@ function _add_event(host_id: string, pid: int, name: string, path: string, cmdli
 
 event osquery::state::processes::initial_state(resultInfo: osquery::ResultInfo, pid: int, name: string, path: string, cmdline: string, cwd: string, uid: int, gid: int,
 		parent: int) {
-	_add_event(resultInfo$host, pid, name, path, cmdline, uid, parent);
+	_add_event(network_time(), resultInfo$host, pid, name, path, cmdline, uid, parent);
 }
 
 event osquery::process_event_added(t: time, host_id: string, pid: int, path: string, cmdline: string, 
 				 cwd: string, uid: int, gid: int, start_time: int, parent: int) {
 	local name = "";
-	_add_event(host_id, pid, name, path, cmdline, uid, parent);
+	_add_event(t, host_id, pid, name, path, cmdline, uid, parent);
 }
 
 event osquery::process_added(t: time, host_id: string, pid: int, name: string, path: string, cmdline: string, 
 				 cwd: string,root: string,  uid: int, gid: int, on_dist: int, start_time: int, parent: int, pgroup: int) {
-	add_entry(host_id, F, pid, name, path, cmdline, uid, parent);
+	add_entry(t, host_id, F, pid, name, path, cmdline, uid, parent);
 }
 
 event osquery::process_removed(t: time, host_id: string, pid: int, name: string, path: string, cmdline: string, 
 				 cwd: string,root: string,  uid: int, gid: int, on_dist: int, start_time: int, parent: int, pgroup: int) {
 	# Schedule remove
-	schedule_remove(host_id, pid, F, T);
+	schedule_remove(t, host_id, pid, F, T);
 }
 
-event osquery::state::processes::scheduled_remove_host(host_id: string, cookie: string) {
+event osquery::state::processes::scheduled_remove_host(t: time, host_id: string, cookie: string) {
 	# Verify host freshness
 	if (host_freshness[host_id] != cookie) { return; }
 	delete host_freshness[host_id];
@@ -123,11 +123,12 @@ event osquery::state::processes::scheduled_remove_host(host_id: string, cookie: 
 	if (host_id in deleting_processes) { delete deleting_processes[host_id]; }
 	if (host_id in deleting_process_events) { delete deleting_process_events[host_id]; }
 	if (host_id in process_events_freshness) { delete process_events_freshness[host_id]; }
+	local now = current_time();
 
 	# Indicate state changes
-	event osquery::process_host_state_removed(host_id);
-	Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_host_state_removed, host_id));
-	remove_host(host_id);
+	event osquery::process_host_state_removed(t, now, host_id);
+	Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_host_state_removed, t, now, host_id));
+	remove_host(t, now, host_id);
 }
 
 event osquery::state::processes::state_outdated(resultInfo: osquery::ResultInfo, pid_str: string) {
@@ -142,7 +143,7 @@ event osquery::state::processes::state_outdated(resultInfo: osquery::ResultInfo,
 
 	# Schedule remove
 	#print("State Outdated");
-	schedule_remove(host_id, pid, T, F);
+	schedule_remove(network_time(), host_id, pid, T, F);
 }
 
 function send_maintenance_chunk(host_id: string, select_vec: vector of string, cookie: string) {
@@ -212,7 +213,7 @@ event osquery::state::processes::verify(host_id: string) {
 	schedule osquery::STATE_MAINTENANCE_INTERVAL { osquery::state::processes::verify(host_id) };
 }
 
-function _remove_legacy(host_id: string, procs: ProcessState, deleting_procs: DeletingProcessState, ev: bool) {
+function _remove_legacy(t: time, host_id: string, procs: ProcessState, deleting_procs: DeletingProcessState, ev: bool) {
 	# Check host
 	if (host_id !in procs) { return; }
 	if (host_id !in deleting_procs) { deleting_procs[host_id] = table(); }
@@ -232,7 +233,7 @@ function _remove_legacy(host_id: string, procs: ProcessState, deleting_procs: De
 				oldest = F;
 				#print("Remove legacy");
 			}
-			schedule_remove(host_id, pid, ev, oldest);
+			schedule_remove(t, host_id, pid, ev, oldest);
 		}
 		if (ev && pid in process_events_freshness[host_id]) {
 			delete process_events_freshness[host_id][pid];
@@ -240,11 +241,11 @@ function _remove_legacy(host_id: string, procs: ProcessState, deleting_procs: De
 	}
 }
 
-function remove_legacy(host_id: string) {
+function remove_legacy(t: time, host_id: string) {
 	# Processes Legacy
-	_remove_legacy(host_id, processes, deleting_processes, F);
+	_remove_legacy(t, host_id, processes, deleting_processes, F);
 	# Process Events Legacy
-	_remove_legacy(host_id, process_events, deleting_process_events, T);
+	_remove_legacy(t, host_id, process_events, deleting_process_events, T);
 }
 
 event osquery::host_connected(host_id: string) {
@@ -264,7 +265,7 @@ event osquery::host_connected(host_id: string) {
 	}
 	# Remove legacy
 	if (connect_balance[host_id] >= 0) {
-		remove_legacy(host_id);
+		remove_legacy(network_time(), host_id);
 	}
 	# Update balance
 	connect_balance[host_id] += 1;
@@ -285,10 +286,11 @@ event osquery::host_disconnected(host_id: string) {
 	connect_balance[host_id] -= 1;
 	# - Last disconnect
 	if (connect_balance[host_id] == 0) {
+		local t = network_time();
 		# Schedule removal of host
 		host_freshness[host_id] = cat(rand(0xffffffffffffffff));
-		schedule osquery::STATE_REMOVAL_DELAY { osquery::state::processes::scheduled_remove_host(host_id, host_freshness[host_id]) };
+		schedule osquery::STATE_REMOVAL_DELAY { osquery::state::processes::scheduled_remove_host(t, host_id, host_freshness[host_id]) };
 		# Remove legacy
-		remove_legacy(host_id);
+		remove_legacy(t, host_id);
 	}
 }

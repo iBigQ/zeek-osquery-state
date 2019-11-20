@@ -16,17 +16,17 @@ export {
 	## Event when added to the state of processes
 	##
 	## <params missing>
-	global process_state_added: event(host_id: string, process_info: ProcessInfo);
+	global process_state_added: event(t: time, host_id: string, process_info: ProcessInfo);
 	
 	## Event when removing a host from the state of processes
 	##
 	## <params missing>
-	global process_host_state_removed: event(host_id: string);
+	global process_host_state_removed: event(t: time, now: time, host_id: string);
 	
 	## Event when removing from the state of processes
 	##
 	## <params missing>
-	global process_state_removed: event(host_id: string, process_info: ProcessInfo);
+	global process_state_removed: event(t: time, now: time, host_id: string, process_info: ProcessInfo);
 }
 
 module osquery::state::processes;

@@ -7,6 +7,8 @@ export {
         redef enum Log::ID += { LOG };
 
         type Info: record {
+                t: time &log;
+                t_effective: time &log &optional;
                 host: string &log;
 		added: bool &log;
                 uid: int &log;
@@ -17,8 +19,9 @@ export {
 }
 
 @if ( !Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER )
-event osquery::user_state_added(host_id: string, user_info: osquery::UserInfo) {
+event osquery::user_state_added(t: time, host_id: string, user_info: osquery::UserInfo) {
         local info: Info = [
+		$t = t,
 		$host = host_id,
 		$added= T,
                	$uid = user_info$uid
@@ -30,8 +33,10 @@ event osquery::user_state_added(host_id: string, user_info: osquery::UserInfo) {
         Log::write(LOG, info);
 }
 
-event osquery::user_state_removed(host_id: string, user_info: osquery::UserInfo) {
+event osquery::user_state_removed(t: time, now: time, host_id: string, user_info: osquery::UserInfo) {
         local info: Info = [
+		$t = t,
+		$t_effective = now,
 		$host = host_id,
 		$added = F,
                	$uid = user_info$uid

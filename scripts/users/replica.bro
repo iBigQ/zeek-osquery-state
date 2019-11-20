@@ -2,7 +2,7 @@
 
 module osquery::state::users;
 
-event osquery::user_state_added(host_id: string, user_info: osquery::UserInfo) &priority=10 {
+event osquery::user_state_added(t: time, host_id: string, user_info: osquery::UserInfo) &priority=10 {
 	local uid = user_info$uid;
 	
 	# Initialize
@@ -16,11 +16,11 @@ event osquery::user_state_added(host_id: string, user_info: osquery::UserInfo) &
 	}
 }
 
-event osquery::user_host_state_removed(host_id: string) &priority=10 {
+event osquery::user_host_state_removed(t: time, now: time, host_id: string) &priority=10 {
 	if (host_id in users) { delete users[host_id]; }
 }
 
-event osquery::user_state_removed(host_id: string, user_info: osquery::UserInfo) &priority=10 {
+event osquery::user_state_removed(t: time, now: time, host_id: string, user_info: osquery::UserInfo) &priority=10 {
 	local uid = user_info$uid;
 
 	# Check state

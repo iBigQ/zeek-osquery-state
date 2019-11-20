@@ -7,6 +7,8 @@ export {
         redef enum Log::ID += { LOG };
 
         type Info: record {
+                t: time &log;
+                t_effective: time &log &optional;
                 host: string &log;
 		added: bool &log;
                 pid: int &log;
@@ -20,8 +22,9 @@ export {
 }
 
 @if ( !Cluster::is_enabled() || Cluster::local_node_type() == Cluster::MANAGER )
-event osquery::process_state_added(host_id: string, process_info: osquery::ProcessInfo) {
+event osquery::process_state_added(t: time, host_id: string, process_info: osquery::ProcessInfo) {
         local info: Info = [
+		$t=t,
 		$host=host_id,
 		$added=T,
                	$pid = process_info$pid,
@@ -36,8 +39,10 @@ event osquery::process_state_added(host_id: string, process_info: osquery::Proce
         Log::write(LOG, info);
 }
 
-event osquery::process_state_removed(host_id: string, process_info: osquery::ProcessInfo) {
+event osquery::process_state_removed(t: time, now: time, host_id: string, process_info: osquery::ProcessInfo) {
         local info: Info = [
+		$t=t,
+		$t_effective=now,
 		$host=host_id,
 		$added=F,
                	$pid = process_info$pid,

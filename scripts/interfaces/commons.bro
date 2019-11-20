@@ -18,17 +18,17 @@ export {
 	## Event when added to the state of interfaces
 	##
 	## <params missing>
-	global interface_state_added: event(host_id: string, interface_info: InterfaceInfo);
+	global interface_state_added: event(t: time, host_id: string, interface_info: InterfaceInfo);
 	
 	## Event when removing a host from the state of interfaces
 	##
 	## <params missing>
-	global interface_host_state_removed: event(host_id: string);
+	global interface_host_state_removed: event(t: time, now: time, host_id: string);
 	
 	## Event when removing from the state of interfaces
 	##
 	## <params missing>
-	global interface_state_removed: event(host_id: string, interface_info: InterfaceInfo);
+	global interface_state_removed: event(t: time, now: time, host_id: string, interface_info: InterfaceInfo);
 }
 
 module osquery::state::interfaces;

@@ -6,28 +6,29 @@
 module osquery::state::interfaces;
 
 event osquery::interface_added(t: time, host_id: string, interface: string, mac: string, ip: string, mask: string) {
-	add_entry(host_id, interface, mac, ip, mask);
+	add_entry(t, host_id, interface, mac, ip, mask);
 }
 
-event osquery::state::interfaces::scheduled_remove(host_id: string, name: string, mac: string, ip: string, mask: string) {
+event osquery::state::interfaces::scheduled_remove(t: time, host_id: string, name: string, mac: string, ip: string, mask: string) {
 	# Delete
-	remove_entry(host_id, name, mac, ip, mask);
+	remove_entry(t, current_time(), host_id, name, mac, ip, mask);
 }
 
-event osquery::state::interfaces::scheduled_remove_host(host_id: string, cookie: string) {
+event osquery::state::interfaces::scheduled_remove_host(t: time, host_id: string, cookie: string) {
 	# Verify host freshness
 	if (host_freshness[host_id] != cookie) { return; }
 	delete host_freshness[host_id];
 	if (host_id in connect_balance) { delete connect_balance[host_id]; }
 	if (host_id in host_maintenance) { delete host_maintenance[host_id]; }
+	local now = current_time();
 
 	# Indicate state changes
-	event osquery::interface_host_state_removed(host_id);
-	Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::interface_host_state_removed, host_id));
-	remove_host(host_id);
+	event osquery::interface_host_state_removed(t, now, host_id);
+	Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::interface_host_state_removed, t, now, host_id));
+	remove_host(t, now , host_id);
 }
 
-function schedule_remove(host_id: string, name: string, mac: string, ip: string, mask: string) {
+function schedule_remove(t: time, host_id: string, name: string, mac: string, ip: string, mask: string) {
 	# Verify state
 	if (host_id !in interfaces) { return; }
 	if (name !in interfaces[host_id]) { return; }
@@ -55,15 +56,15 @@ function schedule_remove(host_id: string, name: string, mac: string, ip: string,
 
 	# Schedule delete
 	if (!exists) { return; }
-	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::interfaces::scheduled_remove(host_id, name, mac, ip, mask) };
+	schedule osquery::STATE_REMOVAL_DELAY { osquery::state::interfaces::scheduled_remove(t, host_id, name, mac, ip, mask) };
 }
 
 event osquery::interface_removed(t: time, host_id: string, interface: string, mac: string, ip: string, mask: string) {
 	# Schedule remove
-	schedule_remove(host_id, interface, mac, ip, mask);
+	schedule_remove(t, host_id, interface, mac, ip, mask);
 }
 
-function remove_legacy(host_id: string) {
+function remove_legacy(t: time, host_id: string) {
 	# Check host
 	if (host_id !in interfaces) { return; }
 
@@ -93,7 +94,7 @@ function remove_legacy(host_id: string) {
 			}
 
 			# Schedule remove
-			schedule_remove(host_id, name, mac, ip, mask);
+			schedule_remove(t, host_id, name, mac, ip, mask);
 		}
 	}
 }
@@ -108,7 +109,7 @@ event osquery::host_connected(host_id: string) {
 	}
 	# Remove legacy
 	if (connect_balance[host_id] >= 0) {
-		remove_legacy(host_id);
+		remove_legacy(network_time(), host_id);
 	}
 	# Update balance
 	connect_balance[host_id] += 1;
@@ -119,11 +120,12 @@ event osquery::host_disconnected(host_id: string) {
 	connect_balance[host_id] -= 1;
 	# - Last disconnect
 	if (connect_balance[host_id] == 0) {
+		local t = network_time();
 		# Schedule removal of host
 		host_freshness[host_id] = cat(rand(0xffffffffffffffff));
-		schedule osquery::STATE_REMOVAL_DELAY { osquery::state::interfaces::scheduled_remove_host(host_id, host_freshness[host_id]) };
+		schedule osquery::STATE_REMOVAL_DELAY { osquery::state::interfaces::scheduled_remove_host(t, host_id, host_freshness[host_id]) };
 		# Remove legacy
-		remove_legacy(host_id);
+		remove_legacy(t, host_id);
 	}
 }
 

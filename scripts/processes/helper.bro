@@ -30,18 +30,18 @@ export {
 	global host_maintenance: set[string];
 
 	# Add an entry to the process state
-	global add_entry: function(host_id: string, ev: bool, pid: int, name: string, path: string, cmdline: string, uid: int, parent: int);
+	global add_entry: function(t: time, host_id: string, ev: bool, pid: int, name: string, path: string, cmdline: string, uid: int, parent: int);
 
 	# Remove an entry from the process state
-	global remove_entry: function(host_id: string, pid: int, ev: bool, oldest: bool);
+	global remove_entry: function(t: time, now: time, host_id: string, pid: int, ev: bool, oldest: bool);
 
 	# Remove all entries for host from the process state
-	global remove_host: function(host_id: string);
+	global remove_host: function(t: time, now: time, host_id: string);
 }
 
-global scheduled_remove: event(host_id: string, pid: int, ev: bool, oldest: bool);
+global scheduled_remove: event(t: time, host_id: string, pid: int, ev: bool, oldest: bool);
 
-function add_entry(host_id: string, ev: bool, pid: int, name: string, path: string, cmdline: string, uid: int, parent: int) {
+function add_entry(t: time, host_id: string, ev: bool, pid: int, name: string, path: string, cmdline: string, uid: int, parent: int) {
 	local process_info: osquery::ProcessInfo = [$pid=pid, $ev=ev];
 	if (name != "") { process_info$name = name; }
 	if (path != "") { process_info$path = path; }
@@ -66,21 +66,21 @@ function add_entry(host_id: string, ev: bool, pid: int, name: string, path: stri
 		}
 		# Raise event
 		if (new) {
-			event osquery::process_state_added(host_id, process_info);
-			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_state_added, host_id, process_info));
+			event osquery::process_state_added(t, host_id, process_info);
+			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_state_added, t, host_id, process_info));
 		}
 		# Save state
 		procs[host_id][pid] += process_info;
 	# New key in state
 	} else {
 		# Raise event
-		event osquery::process_state_added(host_id, process_info);
-		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_state_added, host_id, process_info));
+		event osquery::process_state_added(t, host_id, process_info);
+		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_state_added, t, host_id, process_info));
 		procs[host_id][pid] = vector(process_info);
 	}
 }
 
-function remove_entry(host_id: string, pid: int, ev: bool, oldest: bool) {
+function remove_entry(t: time, now: time, host_id: string, pid: int, ev: bool, oldest: bool) {
 	# Select table
 	local procs: ProcessState;
 	if (ev) { procs = process_events; }
@@ -113,8 +113,8 @@ function remove_entry(host_id: string, pid: int, ev: bool, oldest: bool) {
 	# Last item in state
 	if (|procs[host_id][pid]| == 1) {
 		# Raise event
-		event osquery::process_state_removed(host_id, process_info);
-		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_state_removed, host_id, process_info));
+		event osquery::process_state_removed(t, now, host_id, process_info);
+		Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_state_removed, t, now, host_id, process_info));
 		# Delete state
 		delete procs[host_id][pid];
 	# Oldest item in state
@@ -129,15 +129,15 @@ function remove_entry(host_id: string, pid: int, ev: bool, oldest: bool) {
 		}
 		# Raise event
 		if (old) {
-			event osquery::process_state_removed(host_id, process_info);
-			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_state_removed, host_id, process_info));
+			event osquery::process_state_removed(t, now, host_id, process_info);
+			Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_state_removed, t,  now, host_id, process_info));
 		}
 		# Save state
 		procs[host_id][pid] = process_infos;
 	}
 }
 
-function remove_host(host_id: string) {
+function remove_host(t: time, now: time, host_id: string) {
 	# Check if host exists
 	if (host_id !in processes && host_id !in process_events) { return; }
 
@@ -150,8 +150,8 @@ function remove_host(host_id: string) {
 		for (pid in procs[host_id]) {
 			for (idx in procs[host_id][pid]) {
 				# Raise event
-				event osquery::process_state_removed(host_id, procs[host_id][pid][idx]);
-				Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_state_removed, host_id, procs[host_id][pid][idx]));
+				event osquery::process_state_removed(t, now, host_id, procs[host_id][pid][idx]);
+				Broker::publish(Cluster::worker_topic, Broker::make_event(osquery::process_state_removed, t, now, host_id, procs[host_id][pid][idx]));
 			}
 		}
 

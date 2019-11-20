@@ -13,17 +13,17 @@ export {
 	## Event when added to the state of users
 	##
 	## <params missing>
-	global user_state_added: event(host_id: string, user_info: UserInfo);
+	global user_state_added: event(t: time, host_id: string, user_info: UserInfo);
 	
 	## Event when removing a host from the state of users
 	##
 	## <params missing>
-	global user_host_state_removed: event(host_id: string);
+	global user_host_state_removed: event(t: time, now: time, host_id: string);
 	
 	## Event when removing from the state of users
 	##
 	## <params missing>
-	global user_state_removed: event(host_id: string, user_info: UserInfo);
+	global user_state_removed: event(t: time, now: time, host_id: string, user_info: UserInfo);
 }
 
 module osquery::state::users;
